@@ -1,0 +1,216 @@
+# Tether — XcodeGen spec. Generate with:  cd ios && xcodegen generate
+# All paths are relative to this file (ios/). No .xcodeproj is committed.
+name: Tether
+
+options:
+  bundleIdPrefix: com.newwestsite        # informational; real prefix = BUNDLE_ID_PREFIX build setting
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  groupSortPosition: top
+  xcodeVersion: "16.0"
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # BUNDLE_ID_PREFIX, DEVELOPMENT_TEAM, MARKETING_VERSION, CURRENT_PROJECT_VERSION,
+    # TETHER_SERVER_URL come from Config/*.xcconfig (+ Local.xcconfig).
+
+packages:
+  TetherCore:
+    path: Packages/TetherCore
+
+# ---------------------------------------------------------------------------
+# Reusable bits (YAML anchors are not needed; XcodeGen target templates instead)
+# ---------------------------------------------------------------------------
+targetTemplates:
+  TetherExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).tether.${EXT_SUFFIX}
+        INFOPLIST_FILE: Config/${target_name}/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/${target_name}/${target_name}.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+        PRODUCT_NAME: $(TARGET_NAME)
+
+targets:
+  # ------------------------------------------------------------------ App
+  Tether:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/Sources
+        optional: true            # tolerated if W6 layout changes; build fails loudly later anyway
+      - path: App/Resources
+        optional: true
+      - path: Config/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).tether
+        PRODUCT_NAME: Tether
+        INFOPLIST_FILE: Config/Tether/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Tether/Tether.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherAPI
+      - package: TetherCore
+        product: TetherKit
+      - target: TetherMonitor
+        embed: true
+      - target: TetherShieldConfig
+        embed: true
+      - target: TetherShieldAction
+        embed: true
+      - target: TetherPush
+        embed: true
+      # VERIFY: ExtensionKit extensions must land in Tether.app/Extensions (EXTENSIONS_FOLDER_PATH),
+      # not PlugIns. XcodeGen >= 2.38 handles `extensionkit-extension` targets by embedding into the
+      # "Extensions" destination automatically. If the built .app lacks Extensions/TetherReport.appex,
+      # replace this with an explicit copy-files phase (see postCompileScripts note below / README fallback).
+      - target: TetherReport
+        embed: true
+    # FALLBACK: if Tether.app/Extensions/TetherReport.appex is missing after a build, set `embed: false`
+    # on TetherReport above and in Xcode add to the Tether target's "Embed Foundation Extensions"
+    # phase (Destination: "Extensions", i.e. $(EXTENSIONS_FOLDER_PATH)) the TetherReport.appex.
+    # An `embed: true` + `copy: {destination: ...}` dependency override is the declarative alternative (VERIFY).
+
+  # ------------------------------------------------------------ Extensions
+  TetherMonitor:
+    templates: [TetherExtension]
+    templateAttributes:
+      EXT_SUFFIX: monitor
+    sources:
+      - path: Extensions/TetherMonitor
+        optional: true
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherKit
+
+  TetherShieldConfig:
+    templates: [TetherExtension]
+    templateAttributes:
+      EXT_SUFFIX: shieldconfig
+    sources:
+      - path: Extensions/TetherShieldConfig
+        optional: true
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherKit
+
+  TetherShieldAction:
+    templates: [TetherExtension]
+    templateAttributes:
+      EXT_SUFFIX: shieldaction
+    sources:
+      - path: Extensions/TetherShieldAction
+        optional: true
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherKit
+
+  TetherPush:
+    templates: [TetherExtension]
+    templateAttributes:
+      EXT_SUFFIX: push
+    sources:
+      - path: Extensions/TetherPush
+        optional: true
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherAPI
+      - package: TetherCore
+        product: TetherKit
+
+  # DeviceActivityReport is an ExtensionKit extension (EXAppExtensionAttributes in Info.plist),
+  # NOT an NSExtension app-extension.
+  TetherReport:
+    # VERIFY: `extensionkit-extension` is available in XcodeGen >= 2.38 (productType
+    # com.apple.product-type.extensionkit-extension). If your xcodegen rejects it, upgrade
+    # (`brew upgrade xcodegen`) or fall back to `type: app-extension` and fix the product type in Xcode.
+    type: extensionkit-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Extensions/TetherReport
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).tether.report
+        PRODUCT_NAME: $(TARGET_NAME)
+        INFOPLIST_FILE: Config/TetherReport/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/TetherReport/TetherReport.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+    dependencies:
+      - package: TetherCore
+        product: TetherCore
+      - package: TetherCore
+        product: TetherKit
+
+schemes:
+  Tether:
+    build:
+      targets:
+        Tether: all
+        TetherMonitor: all
+        TetherShieldConfig: all
+        TetherShieldAction: all
+        TetherReport: all
+        TetherPush: all
+    run:
+      config: Debug
+      executable: Tether
+    test:
+      config: Debug
+      gatherCoverageData: true
+      # Documented syntax: `package: {local-package-name}/{target-name}` (ProjectSpec.md).
+      # VERIFY on Mac; if generate errors, delete this block and use scheme TetherCore-Package.
+      targets:
+        - package: TetherCore/TetherCoreTests
+        - package: TetherCore/TetherAPITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  # Convenience scheme so `xcodebuild test -scheme TetherCore-Package` works after generate:
+  # SwiftPM auto-creates "TetherCore-Package" (and per-library schemes) for local packages
+  # inside the workspace; nothing to declare here. # VERIFY name in `xcodebuild -list`.

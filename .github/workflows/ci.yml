@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
+      - run: pip install jsonschema
+      - run: python3 contracts/tools/validate.py
+      - run: python3 contracts/tools/ref_engine.py contracts/engine-vectors.json
+
+  swift-linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ios/Packages/TetherCore/.build
+          key: spm-linux-${{ hashFiles('ios/Packages/TetherCore/Package.swift', 'ios/Packages/TetherCore/Package.resolved') }}
+          restore-keys: spm-linux-
+      - name: swift test
+        run: cd ios/Packages/TetherCore && swift test
+
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # actions/cache instead of setup-node's cache: works even before a lockfile is committed.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-server-${{ hashFiles('server/package*.json') }}
+          restore-keys: npm-server-
+      - name: install
+        working-directory: server
+        run: npm ci || npm install
+      - working-directory: server
+        run: npm run typecheck
+      - working-directory: server
+        run: npm test
+
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # actions/cache instead of setup-node's cache: works even before a lockfile is committed.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-admin-${{ hashFiles('admin/package*.json') }}
+          restore-keys: npm-admin-
+      - name: install
+        working-directory: admin
+        run: npm ci || npm install
+      - working-directory: admin
+        run: npm run build
+      - working-directory: admin
+        run: npm test
+
+  ios-build:
+    runs-on: macos-15
+    # The Apple-framework Swift code (TetherKit, extensions, app) was written on Linux without a
+    # compiler. Remove continue-on-error once milestone M2 (compiles on a Mac) is done.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            ios/Packages/TetherCore/.build
+          key: spm-mac-${{ hashFiles('ios/Packages/TetherCore/Package.swift', 'ios/Packages/TetherCore/Package.resolved') }}
+          restore-keys: spm-mac-
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: cd ios && xcodegen generate
+      - name: Build (generic iOS device, unsigned)
+        run: |
+          cd ios
+          xcodebuild -project Tether.xcodeproj -scheme Tether \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Test TetherCore package on iOS Simulator
+        run: |
+          cd ios/Packages/TetherCore
+          xcodebuild test -scheme TetherCore-Package \
+            -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO

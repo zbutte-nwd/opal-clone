@@ -1,0 +1,6 @@
+#include "Base.xcconfig"
+// Production APNs. Archive/TestFlight builds use the production environment.
+TETHER_APS_ENVIRONMENT = production
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+#include? "Local.xcconfig"
