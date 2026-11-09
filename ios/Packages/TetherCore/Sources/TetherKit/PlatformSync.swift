@@ -48,7 +48,7 @@ public final class PlatformSync: @unchecked Sendable {
             api: api,
             store: StateStore(directory: AppGroup.containerURL),
             blockedGroupIdsProvider: { Reconciler.shared.snapshot().blockedGroupIds },
-            authorizationStatusProvider: { AuthorizationManager.currentStatusValue() },
+            authorizationStatusProvider: { await AuthorizationManager.reportableStatusValue() },
             onBundleChanged: { Reconciler.shared.reconcile() })
     }
 

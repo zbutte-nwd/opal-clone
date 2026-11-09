@@ -27,6 +27,20 @@ synchronously from a DeviceActivityMonitor callback, nor on the app's main threa
 Open question for S6: whether the Monitor process lives long enough to drain the queue after the
 callback returns (verify that one-shot transitions keep chaining with the app force-quit).
 
+### F2 — false "revoked" on the dashboard after background launches (fixed)
+
+**Seen:** the server briefly showed the iPhone as `revoked` (ack `authorizationStatus` ≠ approved),
+clearing on the next check. Protection was on and Screen Time approved throughout.
+
+**Cause:** acks read `AuthorizationCenter.authorizationStatus` live. Right after a cold/background
+launch, and in the push NSE (which syncs from a background launch), it can read `.notDetermined`.
+`AuthorizationManager` already ignored that blip for its own events, but the ack sent it.
+
+**Fix:** acks use `AuthorizationManager.reportableStatusValue()`: on `.notDetermined` with a
+definite status previously recorded by the app, extensions report the recorded status; the app
+re-reads for up to 3 s, then reports what it sees (a lasting revocation still reaches the server).
+Open: what a real revocation reads as (`.denied` vs `.notDetermined`) — spike S1.
+
 ## S1–S6
 
 Not run yet.
