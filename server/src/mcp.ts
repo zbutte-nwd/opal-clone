@@ -18,6 +18,8 @@ const INSTRUCTIONS = `Tether blocks app/website groups on the user's iPhone.
   phone's time zone, which status reports along with the current local time.
 - Blocks from this server are strict on the phone (the user cannot pause them); end them with end.
 - Which apps belong to a group is chosen on the phone (Apple privacy rule); websites can be set here.
+- status shows two views per device: "server expects" (computed from the policy) and "phone reports" (what the
+  phone last acknowledged). Only the phone line, or the user looking at the phone, confirms an effect.
 - Changes reach the phone within seconds via push (or at next app open if push isn't configured).
 - Unlock requests come from the person holding the phone (unlock a group for N minutes, or turn off
   protection). status shows how many are pending; approve or deny one only when the admin tells you to.`;
@@ -257,8 +259,20 @@ async function status(s: Session, now: Date): Promise<string> {
   L.push('', 'Devices:');
   if (!devices.devices.length) L.push('  none paired (use pairing_code)');
   for (const d of devices.devices) {
+    // Server view: what the policy says should be blocked now. Phone view: what the device last acked.
     const blocked = (d.currentState as { groupId: string; blocked: boolean }[]).filter((x) => x.blocked).map((x) => gname(x.groupId));
-    L.push(`  ${d.name} [${d.status}]${d.hasPushToken ? '' : ' (no push token: updates on app open)'}: ${blocked.length ? 'blocked ' + blocked.join(', ') : 'nothing blocked'}`);
+    L.push(`  ${d.name} [${d.status}]${d.hasPushToken ? '' : ' (no push token: updates on app open)'}: server expects: ${blocked.length ? 'blocked ' + blocked.join(', ') : 'nothing blocked'}`);
+    const rep = (d.reportedBlockedGroupIds ?? []) as string[];
+    const local = rep.filter((id) => id.startsWith('lgrp_')).length;
+    const named = rep.filter((id) => !id.startsWith('lgrp_')).map(gname);
+    const what = named.length || local
+      ? `blocked ${[named.join(', '), local ? `${local} phone-made group${local > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + ')}`
+      : 'nothing blocked';
+    const ver = d.appliedVersion == null ? 'no policy applied yet'
+      : d.appliedVersion < d.latestVersion ? `policy v${d.appliedVersion}, latest v${d.latestVersion} - not applied yet` : `policy v${d.appliedVersion}`;
+    const extra = [d.protectionEnabled === false ? 'protection OFF' : '', d.authorizationStatus && d.authorizationStatus !== 'approved' ? `Screen Time access ${d.authorizationStatus}` : '']
+      .filter(Boolean).join(', ');
+    L.push(`    phone reports (${ver}): ${what}${extra ? ` | ${extra}` : ''}`);
   }
   const list = overrides.overrides as Override[];
   const active = list.filter((o) => Date.parse(o.startsAt) <= now.getTime());

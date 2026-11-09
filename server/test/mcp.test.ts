@@ -62,7 +62,18 @@ describe('mcp tools', () => {
     const st = await tool('status');
     expect(st.text).toContain('America/Los_Angeles');
     expect(st.text).toMatch(/BLOCK Social until 9:45/);
-    expect(st.text).toMatch(/Zakir iPhone .*blocked Social/);
+    expect(st.text).toMatch(/Zakir iPhone .*server expects: blocked Social/);
+    // The phone hasn't applied the new policy yet: its own report is shown separately and flagged.
+    expect(st.text).toMatch(/phone reports \(policy v1, latest v\d+ - not applied yet\): nothing blocked/);
+
+    // Phone applies the latest policy and reports what it actually blocked (incl. a phone-made group).
+    const latest = pol.json.version as number;
+    const gid = pol.json.groups[0].id as string;
+    await h.req('POST', '/v1/devices/me/ack', dev.deviceToken, {
+      version: latest, appliedAt: h.clock.t.toISOString(), blockedGroupIds: [gid, 'lgrp_local1'],
+      authorizationStatus: 'approved', timeZone: 'America/Los_Angeles',
+    });
+    expect((await tool('status')).text).toContain(`phone reports (policy v${latest}): blocked Social + 1 phone-made group`);
 
     expect((await tool('end', { groups: ['Social'] })).text).toContain('Ended 1');
     expect((await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json.overrides).toHaveLength(0);
