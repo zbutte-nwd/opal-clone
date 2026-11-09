@@ -22,6 +22,8 @@ const INSTRUCTIONS = `Tether blocks app/website groups on the user's iPhone.
 - Which apps belong to a group is chosen on the phone (Apple privacy rule); websites can be set here.
 - status shows two views per device: "server expects" (computed from the policy) and "phone reports" (what the
   phone last acknowledged). Only the phone line, or the user looking at the phone, confirms an effect.
+- status also shows "phone-made": groups, schedules, sessions and pauses the user created on the phone (read-only
+  here; app counts only, never which apps).
 - Changes reach the phone within seconds via push (or at next app open if push isn't configured).
 - Unlock requests come from the person holding the phone (unlock a group for N minutes, or turn off
   protection). status shows how many are pending; approve or deny one only when the admin tells you to.`;
@@ -89,6 +91,13 @@ interface Rule { id: string; name: string; groupIds: string[]; enabled: boolean;
   trigger: { type: string; windows?: { days: number[]; start: string; end: string }[]; active?: boolean; dailyMinutes?: number } }
 interface Unlock { id: string; deviceName: string | null; kind: 'groups' | 'disableProtection'; groupIds: string[];
   minutes: number | null; reason: string | null; status: string; createdAt: string; expiresAt: string; note: string | null }
+interface LocalSnapshot {
+  groups: { id: string; name: string; webDomains: string[]; counts: { apps: number; categories: number; webTokens: number } }[];
+  rules: (Rule & { maxPausesPerDay?: number | null })[];
+  sessions: { id: string; name?: string | null; groupIds: string[]; startsAt: string; endsAt: string; strict: boolean; endedAt?: string | null }[];
+  pauses: { id: string; groupIds: string[]; startsAt: string; endsAt: string; ruleId?: string | null }[];
+  settings: { protectionEnabled: boolean; protectionLock: string };
+}
 interface Override { id: string; groupIds: string[]; action: string; startsAt: string; endsAt: string | null; reason: string | null; deviceIds?: string[] | null }
 
 class Session {
@@ -250,6 +259,40 @@ async function unlockRequests(s: Session, now: Date, all: boolean): Promise<stri
     + ` from ${r.deviceName ?? 'unknown device'}, ${fmtTime(r.createdAt, tz, now)}${r.note ? ` (note: ${r.note})` : ''} id=${r.id}`).join('\n');
 }
 
+const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+
+function describeTrigger(t: Rule['trigger']): string {
+  return t.type === 'schedule' ? t.windows!.map((w) => `${w.days.map((d) => DAY_NAMES[d - 1]).join(',')} ${w.start}-${w.end}`).join('; ')
+    : t.type === 'manual' ? `mode, ${t.active ? 'ON' : 'off'}` : `${t.dailyMinutes} min/day limit`;
+}
+
+/** Phone-made state from the device's read-only snapshot: one line per section, empty sections omitted. */
+function phoneMade(local: { receivedAt: string; snapshot: LocalSnapshot } | null, gname: (id: string) => string, serverRules: Rule[], tz: string, now: Date): string[] {
+  if (!local) return ['    phone-made: not reported yet (app 0.2.0+ needed)'];
+  const sn = local.snapshot;
+  const t = now.getTime();
+  const L = [`    phone-made (as of ${fmtTime(local.receivedAt, tz, now)}): protection ${sn.settings.protectionEnabled ? 'ON' : 'OFF'}, lock ${sn.settings.protectionLock}`];
+  if (sn.groups.length) L.push('      groups: ' + sn.groups.map((g) => {
+    const c = [g.counts.apps ? plural(g.counts.apps, 'app') : '', g.counts.categories ? plural(g.counts.categories, 'category', 'categories') : '',
+      g.counts.webTokens ? plural(g.counts.webTokens, 'picked site') : '', g.webDomains.length ? `sites: ${g.webDomains.join(', ')}` : ''].filter(Boolean);
+    return `${g.name} (${c.join(', ') || 'nothing picked'}) id=${g.id}`;
+  }).join('; '));
+  if (sn.rules.length) L.push('      schedules: ' + sn.rules.map((r) => `${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${describeTrigger(r.trigger)}`
+    + `${r.strictness !== 'flexible' ? ` | ${r.strictness}` : ''}${r.maxPausesPerDay != null ? ` | max ${r.maxPausesPerDay} pauses/day` : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`).join('; '));
+  const ruleName = (id?: string | null) => (id ? (sn.rules.find((r) => r.id === id) ?? serverRules.find((r) => r.id === id))?.name : undefined);
+  const live = sn.sessions.filter((x) => !x.endedAt && Date.parse(x.endsAt) > t);
+  const sess = (x: LocalSnapshot['sessions'][number], from: boolean) => `session${x.name ? ` "${x.name}"` : ''}${x.strict ? ' (strict)' : ''} ${x.groupIds.map(gname).join(', ')}`
+    + `${from ? ` from ${fmtTime(x.startsAt, tz, now)}` : ''} until ${fmtTime(x.endsAt, tz, now)}`;
+  const pause = (x: LocalSnapshot['pauses'][number], from: boolean) => `pause ${x.groupIds.map(gname).join(', ')}${from ? ` from ${fmtTime(x.startsAt, tz, now)}` : ''}`
+    + ` until ${fmtTime(x.endsAt, tz, now)}${ruleName(x.ruleId) ? ` (${ruleName(x.ruleId)})` : ''}`;
+  const pauses = sn.pauses.filter((x) => Date.parse(x.endsAt) > t);
+  const active = [...live.filter((x) => Date.parse(x.startsAt) <= t).map((x) => sess(x, false)), ...pauses.filter((x) => Date.parse(x.startsAt) <= t).map((x) => pause(x, false))];
+  const next = [...live.filter((x) => Date.parse(x.startsAt) > t).map((x) => sess(x, true)), ...pauses.filter((x) => Date.parse(x.startsAt) > t).map((x) => pause(x, true))];
+  if (active.length) L.push('      active: ' + active.join('; '));
+  if (next.length) L.push('      upcoming: ' + next.join('; '));
+  return L;
+}
+
 async function status(s: Session, now: Date): Promise<string> {
   const [settings, groups, rules, overrides, devices, unlocks] = await Promise.all([
     s.api('GET', '/settings'), s.groups(), s.rules(), s.api('GET', '/overrides?active=true'), s.api('GET', '/devices'),
@@ -262,20 +305,25 @@ async function status(s: Session, now: Date): Promise<string> {
   L.push('', 'Devices:');
   if (!devices.devices.length) L.push('  none paired (use pairing_code)');
   for (const d of devices.devices) {
+    const local = (d.local ?? null) as { receivedAt: string; snapshot: LocalSnapshot } | null;
+    const dname = (id: string) => local?.snapshot.groups.find((g) => g.id === id)?.name ?? gname(id);
     // Server view: what the policy says should be blocked now. Phone view: what the device last acked.
     const blocked = (d.currentState as { groupId: string; blocked: boolean }[]).filter((x) => x.blocked).map((x) => gname(x.groupId));
     L.push(`  ${d.name} [${d.status}]${d.hasPushToken ? '' : ' (no push token: updates on app open)'}: server expects: ${blocked.length ? 'blocked ' + blocked.join(', ') : 'nothing blocked'}`);
     const rep = (d.reportedBlockedGroupIds ?? []) as string[];
-    const local = rep.filter((id) => id.startsWith('lgrp_')).length;
-    const named = rep.filter((id) => !id.startsWith('lgrp_')).map(gname);
-    const what = named.length || local
-      ? `blocked ${[named.join(', '), local ? `${local} phone-made group${local > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + ')}`
+    // Phone-made groups are named from the snapshot when it knows them; the rest are counted.
+    const isKnown = (id: string) => !id.startsWith('lgrp_') || !!local?.snapshot.groups.some((g) => g.id === id);
+    const unknown = rep.filter((id) => !isKnown(id)).length;
+    const named = rep.filter(isKnown).map(dname);
+    const what = named.length || unknown
+      ? `blocked ${[named.join(', '), unknown ? `${unknown} phone-made group${unknown > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + ')}`
       : 'nothing blocked';
     const ver = d.appliedVersion == null ? 'no policy applied yet'
       : d.appliedVersion < d.latestVersion ? `policy v${d.appliedVersion}, latest v${d.latestVersion} - not applied yet` : `policy v${d.appliedVersion}`;
     const extra = [d.protectionEnabled === false ? 'protection OFF' : '', d.authorizationStatus && d.authorizationStatus !== 'approved' ? `Screen Time access ${d.authorizationStatus}` : '']
       .filter(Boolean).join(', ');
     L.push(`    phone reports (${ver}): ${what}${extra ? ` | ${extra}` : ''}`);
+    L.push(...phoneMade(local, dname, rules, tz, now));
   }
   const list = overrides.overrides as Override[];
   const active = list.filter((o) => Date.parse(o.startsAt) <= now.getTime());
@@ -289,10 +337,7 @@ async function status(s: Session, now: Date): Promise<string> {
   L.push('', 'Schedules & modes:');
   if (!rules.length) L.push('  none');
   for (const r of rules) {
-    const t = r.trigger;
-    const what = t.type === 'schedule' ? t.windows!.map((w) => `${w.days.map((d) => DAY_NAMES[d - 1]).join(',')} ${w.start}-${w.end}`).join('; ')
-      : t.type === 'manual' ? `mode, ${t.active ? 'ON' : 'off'}` : `${t.dailyMinutes} min/day limit`;
-    L.push(`  ${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${what}${r.strictness !== 'flexible' ? ` | ${r.strictness}` : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`);
+    L.push(`  ${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${describeTrigger(r.trigger)}${r.strictness !== 'flexible' ? ` | ${r.strictness}` : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`);
   }
   if (unlocks.requests.length) L.push('', `Pending unlock requests: ${unlocks.requests.length} (see unlock_requests)`);
   L.push('', `Settings: protectionLock=${settings.protectionLock}, allowLocalRules=${settings.allowLocalRules}, denyAppRemoval=${settings.denyAppRemoval}, timeZone=${settings.timeZone ?? 'phone local'}`);

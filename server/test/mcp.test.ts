@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { harness, type Harness } from './helpers.js';
+import { harness, localFixture, type Harness } from './helpers.js';
 import { parseTime } from '../src/mcp.js';
 
 async function setup() {
@@ -153,6 +153,32 @@ describe('mcp tools', () => {
     expect((await tool('approve_unlock', { id: p2.id })).text).toBe('Approved: the phone may now turn off protection.');
     expect((await tool('unlock_requests', { all: true })).text).toContain('[denied]');
     expect((await tool('unlock_requests')).text).toBe('No pending unlock requests.');
+  });
+});
+
+describe('mcp phone-made visibility', () => {
+  it('status shows the phone snapshot (groups with counts, schedules, active session/pause) and names phone groups', async () => {
+    const { tool, h, dev } = await setup();
+    expect((await tool('status')).text).toContain('    phone-made: not reported yet (app 0.2.0+ needed)');
+
+    expect((await h.req('PUT', '/v1/devices/me/local', dev.deviceToken, localFixture())).status).toBe(204);
+    const st = (await tool('status')).text;
+    expect(st).toContain('    phone-made (as of 9:00 AM): protection ON, lock partnerPIN');
+    expect(st).toContain('      groups: Socials (3 apps, 1 category, sites: instagram.com) id=lgrp_socials1');
+    expect(st).toContain('      schedules: Work: block Socials | mon,tue,wed,thu,fri 09:00-17:00 | guarded | max 3 pauses/day id=lrule_work1');
+    // At 9:00 PST the 8:30-9:30 session is active and the 9:00-9:05 pause is active.
+    expect(st).toContain('      active: session "Deep work" Socials, grp_social until 9:30 AM; pause Socials until 9:05 AM (Work)');
+
+    await h.req('POST', '/v1/devices/me/ack', dev.deviceToken, {
+      version: 1, appliedAt: h.clock.t.toISOString(), blockedGroupIds: ['lgrp_socials1', 'lgrp_unknown'],
+      authorizationStatus: 'approved', timeZone: 'America/Los_Angeles',
+    });
+    expect((await tool('status')).text).toMatch(/phone reports \(policy v1.*\): blocked Socials \+ 1 phone-made group/);
+
+    // Nothing active later in the day; empty sections are omitted.
+    h.advance(3 * 3600_000);
+    const later = (await tool('status')).text;
+    expect(later).not.toContain('      active:');
   });
 });
 
