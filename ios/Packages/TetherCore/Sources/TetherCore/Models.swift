@@ -22,12 +22,16 @@ public struct BlockGroup: Codable, Sendable, Hashable, Identifiable {
     public var colorHex: String?
     public var webDomains: [String]
     public var source: Source
+    /// Server copy of a phone-made group (`lgrp_…`): the phone carries that group's selection over once.
+    public var copiedFrom: GroupID?
 
-    public init(id: GroupID, name: String, colorHex: String? = nil, webDomains: [String] = [], source: Source = .local) {
+    public init(id: GroupID, name: String, colorHex: String? = nil, webDomains: [String] = [], source: Source = .local,
+                copiedFrom: GroupID? = nil) {
         self.id = id; self.name = name; self.colorHex = colorHex; self.webDomains = webDomains; self.source = source
+        self.copiedFrom = copiedFrom
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, colorHex, webDomains, source }
+    enum CodingKeys: String, CodingKey { case id, name, colorHex, webDomains, source, copiedFrom }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(GroupID.self, forKey: .id)
@@ -35,6 +39,7 @@ public struct BlockGroup: Codable, Sendable, Hashable, Identifiable {
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
         webDomains = try c.decodeIfPresent([String].self, forKey: .webDomains) ?? []
         source = try c.decodeIfPresent(Source.self, forKey: .source) ?? .server
+        copiedFrom = (try? c.decodeIfPresent(GroupID.self, forKey: .copiedFrom)) ?? nil
     }
 }
 
@@ -85,7 +90,19 @@ public enum Trigger: Codable, Sendable, Hashable {
 }
 
 public enum RuleAction: String, Codable, Sendable, Hashable { case block, allow }
-public enum Strictness: String, Codable, Sendable, Hashable { case flexible, strict }
+/// `guarded` behaves like `flexible` in the engine (pausable); the app locks edits to the rule and
+/// shrinking of its groups while it is active (ScheduleGuard). Unknown values decode as `flexible`
+/// so a newer server can't make an older app reject the whole bundle.
+public enum Strictness: String, Codable, Sendable, Hashable {
+    case flexible, guarded, strict
+
+    public init(from decoder: Decoder) throws {
+        self = Strictness(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .flexible
+    }
+
+    /// guarded or strict: edits are locked while the rule is active.
+    public var isLocking: Bool { self != .flexible }
+}
 
 public struct Rule: Codable, Sendable, Hashable, Identifiable {
     public var id: RuleID

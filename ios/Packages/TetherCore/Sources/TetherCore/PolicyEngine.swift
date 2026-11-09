@@ -46,6 +46,24 @@ public enum PolicyEngine {
         return .allowed
     }
 
+    /// §3 step 3: is `rule` in force at `now`? True iff it is enabled, counts for this input (local rules
+    /// are ignored when `allowLocalRules == false`) and its trigger is active (schedule window, manual mode
+    /// on, usage limit hit today). The single source of truth for both `evaluate` and the app's ScheduleGuard.
+    public static func isRuleActive(_ rule: Rule, _ input: EngineInput, at now: Date, timeZone: TimeZone) -> Bool {
+        guard effectiveRules(input).contains(where: { $0.id == rule.id }) else { return false }
+        return isTriggerActive(rule, input.usageLimitHits, at: ScheduleMath.localMoment(now, in: timeZone))
+    }
+
+    static func isTriggerActive(_ r: Rule, _ hits: [UsageLimitHit], at m: ScheduleMath.LocalMoment) -> Bool {
+        guard r.enabled else { return false }
+        switch r.trigger {
+        case .schedule(let windows): return ScheduleMath.isAnyActive(windows, at: m)
+        case .manual(let on): return on
+        case .usageLimit(_, let days):
+            return days.contains(m.isoWeekday) && hits.contains(where: { $0.ruleId == r.id && $0.day == m.day })
+        }
+    }
+
     // MARK: Shared helpers (also used by TransitionPlanner)
 
     /// Bundle rules followed by local rules (local ignored when `allowLocalRules == false`).
@@ -89,21 +107,7 @@ public enum PolicyEngine {
             for r in rules where byId[r.id] == nil { byId[r.id] = r }
             self.rulesById = byId
 
-            var active: [Rule] = []
-            for r in rules where r.enabled {
-                switch r.trigger {
-                case .schedule(let windows):
-                    if ScheduleMath.isAnyActive(windows, at: m) { active.append(r) }
-                case .manual(let on):
-                    if on { active.append(r) }
-                case .usageLimit(_, let days):
-                    if days.contains(m.isoWeekday),
-                       input.usageLimitHits.contains(where: { $0.ruleId == r.id && $0.day == m.day }) {
-                        active.append(r)
-                    }
-                }
-            }
-            self.activeRules = active
+            self.activeRules = rules.filter { PolicyEngine.isTriggerActive($0, input.usageLimitHits, at: m) }
             self.overrides = (input.bundle?.overrides ?? []).filter {
                 $0.startsAt <= now && ($0.endsAt == nil || now < $0.endsAt!)
             }
