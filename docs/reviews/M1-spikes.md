@@ -47,4 +47,15 @@ was drafted and dropped for this reason: it would hide a real revocation until t
 
 ## S1–S6
 
-Not run yet.
+### S1 — Screen Time passcode gate (partial, 2026-11-09)
+
+| Attempt | Result |
+|---|---|
+| (b) Revoke Tether in Settings → Screen Time (apps with access) | **iOS asks for the Screen Time passcode.** Confirmed by the user, who knows it and turned access off at ~04:16 PT. The app then acked `notDetermined` and the server showed the device `revoked` (see F2). |
+| (a) Delete the app | not yet recorded |
+| (c) Sign out of iCloud | not yet recorded |
+
+Implication: the gate is only as strong as who holds the Screen Time passcode. If the user knows it, revocation
+is always possible; the server surfaces it as `revoked`. For real friction, someone else must hold the passcode.
+
+S2–S6: not run yet.
