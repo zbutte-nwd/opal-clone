@@ -37,18 +37,19 @@ export function onUnauthorized(fn: (() => void) | null): void {
 export async function parseError(res: Response): Promise<ApiError> {
   let code: string = 'internal';
   let message = `Request failed (${res.status})`;
-  try {
-    const text = await res.text();
-    if (text) {
+  let text = '';
+  try { text = await res.text(); } catch { /* ignore */ }
+  if (text) {
+    try {
       const body = JSON.parse(text) as { error?: { code?: string; message?: string } };
       if (body?.error) {
         code = body.error.code ?? code;
         message = body.error.message ?? message;
-      } else {
-        message = text.slice(0, 200);
       }
+    } catch {
+      message = text.slice(0, 200); // non-JSON body
     }
-  } catch { /* non-JSON body: keep default message */ }
+  }
   return new ApiError(res.status, code, message);
 }
 
