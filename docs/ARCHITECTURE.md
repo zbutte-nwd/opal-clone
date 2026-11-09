@@ -209,8 +209,10 @@ extension looks the token up (token is `Hashable`/`Codable`; key = base64 of enc
 5. **Events**: `POST /v1/devices/me/events {events:[{id, type, occurredAt, data}]}`
    types: `authorizationChanged`, `protectionDisabled`, `protectionEnabled`, `sessionStarted`,
    `sessionEnded`, `pauseStarted`, `usageLimitReached`, `heartbeat`.
-6. **Unlock request**: `POST /v1/devices/me/unlock-requests {groupIds, minutes, reason}`;
-   approval creates an `unblock` override with `endsAt` → bundle version bump → push.
+6. **Unlock request**: `POST /v1/devices/me/unlock-requests {kind, groupIds, minutes, reason}`;
+   `groups` approval creates an `unblock` override with `endsAt` → bundle version bump → push.
+   `disableProtection` approval (Protection Lock `remoteApproval`) is polled/pushed back and
+   the device disables protection locally.
 
 Push payload (both alert-NSE and silent):
 ```json

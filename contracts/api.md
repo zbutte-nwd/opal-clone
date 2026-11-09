@@ -50,7 +50,7 @@ Convenience (E9 automation): `POST /actions/block {groupIds, durationMinutes?}` 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/unlock-requests?status=pending` | admin |
-| POST | `/unlock-requests/:id/approve` | `{minutes?}` → creates `unblock` override for that device, `endsAt = now+minutes` |
+| POST | `/unlock-requests/:id/approve` | `{minutes?}` → for `groups`: creates `unblock` override for that device, `endsAt = now+minutes`; for `disableProtection`: just marks approved + pushes `unlockDecided` |
 | POST | `/unlock-requests/:id/deny` | `{note?}` |
 
 ## API keys (admin only)
@@ -64,11 +64,16 @@ Convenience (E9 automation): `POST /actions/block {groupIds, durationMinutes?}` 
 | GET | `/devices/me/policy` | header `If-None-Match: "<version>"` → `200 PolicyBundle` + `ETag: "<version>"`, or `304` |
 | POST | `/devices/me/ack` | `{version, appliedAt, blockedGroupIds: string[], authorizationStatus: "approved"|"denied"|"notDetermined"}` → `204` |
 | POST | `/devices/me/events` | `{events: [{id, type, occurredAt, data?}]}` → `202` (idempotent on event id) |
-| POST | `/devices/me/unlock-requests` | `{groupIds, minutes, reason?}` → `201 UnlockRequest` |
+| POST | `/devices/me/unlock-requests` | `{kind: "groups"|"disableProtection", groupIds?, minutes?, reason?}` → `201 UnlockRequest` (`groupIds`+`minutes` required for `groups`) |
 | GET | `/devices/me/unlock-requests/:id` | → `UnlockRequest` |
 | DELETE | `/devices/me` | device-initiated unpair (only allowed when protection already disabled) |
 
-`UnlockRequest`: `{id, deviceId, groupIds, minutes, reason, status: "pending"|"approved"|"denied"|"expired", createdAt, decidedAt?, overrideId?}`
+`UnlockRequest`: `{id, deviceId, kind, groupIds, minutes, reason, status: "pending"|"approved"|"denied"|"expired", createdAt, decidedAt?, overrideId?}`
+
+- `kind: "groups"` approval → server creates an `unblock` override (`endsAt = now + minutes`) for that device → bundle bump → push.
+- `kind: "disableProtection"` (Protection Lock `remoteApproval`) approval → no policy change; the device polls
+  `GET /devices/me/unlock-requests/:id` (and receives a push `{"tether":{"type":"unlockDecided","requestId":…}}`)
+  and, once `approved`, disables protection locally. Pending requests expire after 24 h.
 
 ## Push (server → APNs)
 See ARCHITECTURE.md §7. `apns-push-type: alert` + `mutable-content: 1` (NSE path) for
