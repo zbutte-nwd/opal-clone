@@ -35,8 +35,10 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Pr
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 3
 
+$port = (Select-String -Path "$ServerDir\.env" -Pattern '^PORT=(\d+)' | Select-Object -First 1).Matches.Groups[1].Value
+if (-not $port) { $port = '8787' }
 try {
-  $h = Invoke-RestMethod -Uri 'http://127.0.0.1:8787/healthz' -TimeoutSec 5
+  $h = Invoke-RestMethod -Uri "http://127.0.0.1:$port/healthz" -TimeoutSec 5
   Write-Host "Tether server running (version $($h.version)). Log: $ServerDir\data\server.log"
 } catch {
   Write-Warning "Task registered but /healthz did not answer yet. Check $ServerDir\data\server.log"

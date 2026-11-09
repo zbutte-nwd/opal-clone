@@ -24,9 +24,11 @@ it at `https://<this-pc>.<tailnet>.ts.net`. Agents use the MCP endpoint `…/mcp
 
 ```powershell
 git clone git@github.com:zbutte-nwd/opal-clone.git tether; cd tether\server   # private repo: needs the human's GitHub auth (gh auth login)
-npm ci
+npm ci --ignore-scripts        # Windows: plain `npm ci` tries to compile better-sqlite3 (needs Visual Studio);
+                               # the package already ships a Windows binary. Linux/macOS: plain `npm ci`.
 npm test                       # must be green
 npm run setup                  # add: -- --apns-key C:\path\AuthKey_X.p8 --apns-key-id X   (if you have it)
+                               # non-default port: -- --url https://<pc>.<tailnet>.ts.net:<httpsPort>, and PORT=<n> in .env
 ```
 `npm run setup` builds, writes `server\.env` (secret, gitignored: random `JWT_SECRET`, `HOST=127.0.0.1`,
 `PUBLIC_BASE_URL` auto-detected from Tailscale, APNs vars), creates the admin account, an API key named
@@ -39,7 +41,10 @@ them to the human right away; don't write them into any file in the repo. Re-run
 Windows (elevated PowerShell, in `server\`):
 ```powershell
 powershell -ExecutionPolicy Bypass -File workstation\install-windows.ps1
-tailscale serve --bg 8787       # persists across reboots
+tailscale serve --bg 8787       # persists across reboots; publishes https://<pc>.<tailnet>.ts.net/
+# If 8787 or the root URL is taken, use other ports, e.g. PORT=47787 in .env and:
+#   tailscale serve --bg --https=47443 http://127.0.0.1:47787
+# then PUBLIC_BASE_URL (in .env) and every URL below carry :47443.
 ```
 The task "Tether Server" starts at boot without a login, restarts if it exits, and logs to
 `server\data\server.log`.
@@ -92,7 +97,7 @@ the phone (Apple privacy rule); the server only knows group names and websites.
 | Revoke a key | admin dashboard, or `DELETE /v1/api-keys/:id` with an admin login |
 | Add APNs later | `npm run setup -- --apns-key <file.p8> --apns-key-id <id>` then restart |
 | Restart | `Stop-ScheduledTask 'Tether Server'; Start-ScheduledTask 'Tether Server'` |
-| Update | `git pull; npm ci; npm test; npm run build;` then restart |
+| Update | `git pull; npm ci --ignore-scripts; npm test; npm run build;` then restart |
 | Logs | `Get-Content data\server.log -Tail 50 -Wait` |
 | Backup | copy `server\data\tether.db*` and `server\.env` (stop the task first) |
 
