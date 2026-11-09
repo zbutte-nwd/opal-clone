@@ -55,11 +55,13 @@ public final class ActivityScheduler: @unchecked Sendable {
 
         var sigs = loadSignatures()
         let center = self.center
+        // VERIFY: `DeviceActivityName(rawValue:)` / `DeviceActivityEvent.Name(rawValue:)` exist (both are RawRepresentable<String>);
+        // VERIFY: `DeviceActivityCenter.activities` and `stopMonitoring(_: [DeviceActivityName])` signatures.
         let running = Set(center.activities.map { $0.rawValue })
         var desired: [String: (sig: String, register: () throws -> Void)] = [:]
 
         // 1. daily
-        desired[Self.dailyName] = ("daily-v1", { in
+        desired[Self.dailyName] = ("daily-v1", {
             let schedule = DeviceActivitySchedule(
                 intervalStart: DateComponents(hour: 0, minute: 0),
                 intervalEnd: DateComponents(hour: 23, minute: 59),
@@ -86,7 +88,7 @@ public final class ActivityScheduler: @unchecked Sendable {
             usageCount += 1
             let name = Self.usageActivityName(ruleId: rule.id)
             let tokenSig = Self.tokenSignature(apps: apps, cats: cats, webs: webs)
-            desired[name] = ("usage-v1|\(minutes)|\(tokenSig)", { in
+            desired[name] = ("usage-v1|\(minutes)|\(tokenSig)", {
                 let schedule = DeviceActivitySchedule(
                     intervalStart: DateComponents(hour: 0, minute: 0),
                     intervalEnd: DateComponents(hour: 23, minute: 59),
@@ -108,7 +110,7 @@ public final class ActivityScheduler: @unchecked Sendable {
             let end = date.addingTimeInterval(TimeInterval(Self.minIntervalMinutes * 60))
             let startComps = Self.components(date, calendar)
             let endComps = Self.components(end, calendar)
-            desired[name] = ("t|\(Int(date.timeIntervalSince1970))|\(timeZone.identifier)", { in
+            desired[name] = ("t|\(Int(date.timeIntervalSince1970))|\(timeZone.identifier)", {
                 let schedule = DeviceActivitySchedule(intervalStart: startComps, intervalEnd: endComps, repeats: false)
                 try center.startMonitoring(DeviceActivityName(rawValue: name), during: schedule)
             })

@@ -193,6 +193,7 @@ public final class ProtectionController: @unchecked Sendable {
                 s.enqueue(event: DeviceEvent(type: .protectionDisabled, occurredAt: now, data: data))
             }
         } catch { throw ProtectionError.storage(String(describing: error)) }
+        // VERIFY: `TamperLock.clearAll()`/`ShieldApplier.clearAll()` -> `ManagedSettingsStore.clearAllSettings()` is synchronous.
         // Clear immediately (do not rely on the reconcile alone), then reconcile to stop schedules.
         ShieldApplier().clearAll()
         TamperLock().clearAll()

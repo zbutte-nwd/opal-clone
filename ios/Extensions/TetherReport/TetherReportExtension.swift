@@ -3,7 +3,6 @@
 // W7: link TetherKit into this extension (it supplies `DeviceActivityReport.Context.totalActivity`).
 
 import DeviceActivity
-import ExtensionKit
 import SwiftUI
 import TetherKit
 

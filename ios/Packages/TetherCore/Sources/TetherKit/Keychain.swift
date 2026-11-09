@@ -23,6 +23,7 @@ public enum Keychain {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
+        // VERIFY: keychain-access-groups entitlement must contain TetherKeychainGroup in every target, else -34018.
         if let group = AppGroup.keychainGroup { q[kSecAttrAccessGroup as String] = group }
         return q
     }
