@@ -318,6 +318,30 @@ public struct PersistedState: Codable, Sendable, Hashable {
 
     public init() {}
 
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion, bundle, localGroups, localRules, sessions, pauses, usageLimitHits,
+             appliedBundleVersion, lastReconciledAt, lastSyncAt, pendingEvents, protection, server
+    }
+
+    /// Tolerant decoding: any missing key falls back to its default so state.json files
+    /// written by older (or newer) app versions still load.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? PersistedState.currentSchemaVersion
+        bundle = try c.decodeIfPresent(PolicyBundle.self, forKey: .bundle)
+        localGroups = try c.decodeIfPresent([BlockGroup].self, forKey: .localGroups) ?? []
+        localRules = try c.decodeIfPresent([Rule].self, forKey: .localRules) ?? []
+        sessions = try c.decodeIfPresent([FocusSession].self, forKey: .sessions) ?? []
+        pauses = try c.decodeIfPresent([Pause].self, forKey: .pauses) ?? []
+        usageLimitHits = try c.decodeIfPresent([UsageLimitHit].self, forKey: .usageLimitHits) ?? []
+        appliedBundleVersion = try c.decodeIfPresent(Int.self, forKey: .appliedBundleVersion)
+        lastReconciledAt = try c.decodeIfPresent(Date.self, forKey: .lastReconciledAt)
+        lastSyncAt = try c.decodeIfPresent(Date.self, forKey: .lastSyncAt)
+        pendingEvents = try c.decodeIfPresent([DeviceEvent].self, forKey: .pendingEvents) ?? []
+        protection = try c.decodeIfPresent(ProtectionState.self, forKey: .protection) ?? ProtectionState()
+        server = try c.decodeIfPresent(ServerConfig.self, forKey: .server)
+    }
+
     public var engineInput: EngineInput {
         EngineInput(bundle: bundle, localGroups: localGroups, localRules: localRules,
                     sessions: sessions, pauses: pauses, usageLimitHits: usageLimitHits)

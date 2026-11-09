@@ -33,7 +33,7 @@ Each workstream **owns** its directories; don't edit outside them (except append
 | W4 | **Admin dashboard** — React + Vite | `admin/**` | `npm run build`, `npm test` | ⬜ |
 | W5 | **iOS platform** — `TetherKit` (Reconciler, ShieldApplier, ActivityScheduler, AuthorizationManager, SelectionStore, ProtectionController, Keychain, AppGroup) + all 5 extensions | `Sources/TetherKit/**`, `ios/Extensions/**` | Linux build still passes (all Apple code behind `#if canImport(ManagedSettings)`); W8 audit | ⬜ |
 | W6 | **iOS app UI** — SwiftUI app, onboarding, groups, rules, sessions, pause, pairing, settings | `ios/App/**` | W8 audit; compiles on Mac in M2 | ⬜ |
-| W7 | **Project & infra** — XcodeGen `project.yml`, Info.plists, entitlements, xcconfig, privacy manifest, CI, scripts, Makefile | `ios/project.yml`, `ios/Config/**`, `.github/**`, `scripts/**`, `Makefile` | `python3 -c yaml.safe_load`, `actionlint` if available, scripts `bash -n` | ⬜ |
+| W7 | **Project & infra** — XcodeGen `project.yml`, Info.plists, entitlements, xcconfig, privacy manifest, CI, scripts, Makefile | `ios/project.yml`, `ios/Config/**`, `.github/**`, `scripts/**`, `Makefile` | `python3 -c yaml.safe_load`, `actionlint` if available, scripts `bash -n` | ✅ |
 | W8 | **Apple API audit** (after W5/W6) | review only; fixes in W5/W6 dirs | written report `docs/reviews/W8-apple-api-audit.md` | ⬜ |
 
 ### Shared conventions (all Swift workstreams)
