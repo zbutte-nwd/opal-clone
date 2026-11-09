@@ -344,3 +344,28 @@ describe('rate limiting', () => {
     await rl.app.close();
   });
 });
+
+describe('device time zone', () => {
+  it('server-side currentState uses the device tz reported on ack when the account has none', async () => {
+    // Pin the clock: 2026-11-09T17:00Z = Monday 09:00 in Los Angeles, 17:00 in UTC.
+    h.clock.t = new Date('2026-11-09T17:00:00Z');
+    const g = (await h.req('POST', '/v1/groups', A.token, { name: 'TZ', webDomains: [] })).json.id;
+    await h.req('POST', '/v1/rules', A.token, {
+      name: 'tz-rule', groupIds: [g], enabled: true, action: 'block', strictness: 'flexible',
+      trigger: { type: 'schedule', windows: [{ days: [1], start: '08:00', end: '10:00' }] },
+    });
+    const d3 = await h.pair(A.token, 'TZ phone');
+    const blockedFor = async () =>
+      (await h.req('GET', `/v1/devices/${d3.deviceId}`, A.token)).json.currentState.find((s: { groupId: string }) => s.groupId === g).blocked;
+    expect(await blockedFor()).toBe(false); // evaluated in UTC: 17:00 is outside 08:00-10:00
+    const ack = await h.req('POST', '/v1/devices/me/ack', d3.deviceToken, {
+      version: 1, appliedAt: '2026-11-09T17:00:00Z', blockedGroupIds: [], authorizationStatus: 'approved', timeZone: 'America/Los_Angeles',
+    });
+    expect(ack.status).toBe(204);
+    expect(await blockedFor()).toBe(true); // 09:00 Los Angeles
+    const bad = await h.req('POST', '/v1/devices/me/ack', d3.deviceToken, {
+      version: 1, appliedAt: '2026-11-09T17:00:00Z', blockedGroupIds: [], authorizationStatus: 'approved', timeZone: 'Mars/Olympus',
+    });
+    expect(bad.status).toBe(422);
+  });
+});

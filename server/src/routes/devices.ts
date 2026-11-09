@@ -33,11 +33,15 @@ const PushToken = z.object({
   token: z.string().regex(/^[0-9a-fA-F]{32,256}$/, 'must be a hex string'),
   environment: z.enum(['sandbox', 'production']),
 });
+function isValidTimeZone(tz: string): boolean {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; }
+}
 const Ack = z.object({
   version: z.number().int().min(0),
   appliedAt: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'must be RFC 3339'),
   blockedGroupIds: z.array(z.string().max(64)).max(500),
   authorizationStatus: z.enum(['approved', 'denied', 'notDetermined']),
+  timeZone: z.string().max(64).refine(isValidTimeZone, 'must be an IANA time zone').optional(),
 });
 const Events = z.object({
   events: z
@@ -191,8 +195,8 @@ export function deviceRoutes(ctx: Ctx) {
         const b = parse(Ack, req.body);
         const dev = req.device!;
         db.prepare(
-          `UPDATE devices SET applied_version = MAX(applied_version, ?), applied_at = ?, blocked_group_ids = ?, authorization_status = ? WHERE id = ?`,
-        ).run(Math.min(b.version, dev.latest_version), iso(new Date(b.appliedAt)), JSON.stringify(b.blockedGroupIds), b.authorizationStatus, dev.id);
+          `UPDATE devices SET applied_version = MAX(applied_version, ?), applied_at = ?, blocked_group_ids = ?, authorization_status = ?, time_zone = COALESCE(?, time_zone) WHERE id = ?`,
+        ).run(Math.min(b.version, dev.latest_version), iso(new Date(b.appliedAt)), JSON.stringify(b.blockedGroupIds), b.authorizationStatus, b.timeZone ?? null, dev.id);
         return reply.code(204).send();
       });
 

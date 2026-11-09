@@ -280,7 +280,7 @@ paths:
       tags: [device-api]
       security: [{ deviceToken: [] }]
       summary: Acknowledge an applied version
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, appliedAt, blockedGroupIds, authorizationStatus], properties: { version: { type: integer }, appliedAt: { type: string, format: date-time }, blockedGroupIds: { type: array, items: { type: string } }, authorizationStatus: { enum: [approved, denied, notDetermined] } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, appliedAt, blockedGroupIds, authorizationStatus], properties: { version: { type: integer }, appliedAt: { type: string, format: date-time }, blockedGroupIds: { type: array, items: { type: string } }, authorizationStatus: { enum: [approved, denied, notDetermined] }, timeZone: { type: string, description: "Device IANA time zone" } } } } } }
       responses: { '204': { description: Stored } }
   /v1/devices/me/events:
     post:

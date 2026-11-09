@@ -140,6 +140,11 @@ CREATE TABLE audit_log (
 CREATE INDEX idx_audit_admin ON audit_log(admin_id, seq DESC);
 `,
   },
+  {
+    version: 2,
+    name: 'device_time_zone',
+    sql: `ALTER TABLE devices ADD COLUMN time_zone TEXT;`,
+  },
 ];
 
 export function migrate(db: DB): void {

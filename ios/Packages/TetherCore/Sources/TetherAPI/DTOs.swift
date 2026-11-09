@@ -41,9 +41,12 @@ public struct AckRequest: Codable, Sendable, Hashable {
     public var appliedAt: Date
     public var blockedGroupIds: [String]
     public var authorizationStatus: AuthorizationStatusValue
-    public init(version: Int, appliedAt: Date, blockedGroupIds: [String], authorizationStatus: AuthorizationStatusValue) {
+    /// Device's IANA time zone, so the server can show schedule state in device-local time.
+    public var timeZone: String?
+    public init(version: Int, appliedAt: Date, blockedGroupIds: [String], authorizationStatus: AuthorizationStatusValue,
+                timeZone: String? = TimeZone.current.identifier) {
         self.version = version; self.appliedAt = appliedAt
-        self.blockedGroupIds = blockedGroupIds; self.authorizationStatus = authorizationStatus
+        self.blockedGroupIds = blockedGroupIds; self.authorizationStatus = authorizationStatus; self.timeZone = timeZone
     }
 }
 

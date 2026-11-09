@@ -62,7 +62,7 @@ Convenience (E9 automation): `POST /actions/block {groupIds, durationMinutes?}` 
 | POST | `/devices/enroll` *(no auth)* | `{pairingCode, name, model, osVersion, appVersion}` → `201 {deviceId, deviceToken}` |
 | PUT | `/devices/me/push-token` | `{token: hex, environment: "sandbox"|"production"}` → `204` |
 | GET | `/devices/me/policy` | header `If-None-Match: "<version>"` → `200 PolicyBundle` + `ETag: "<version>"`, or `304` |
-| POST | `/devices/me/ack` | `{version, appliedAt, blockedGroupIds: string[], authorizationStatus: "approved"|"denied"|"notDetermined"}` → `204` |
+| POST | `/devices/me/ack` | `{version, appliedAt, blockedGroupIds: string[], authorizationStatus: "approved"|"denied"|"notDetermined", timeZone?: IANA}` → `204` |
 | POST | `/devices/me/events` | `{events: [{id, type, occurredAt, data?}]}` → `202` (idempotent on event id) |
 | POST | `/devices/me/unlock-requests` | `{kind: "groups"|"disableProtection", groupIds?, minutes?, reason?}` → `201 UnlockRequest` (`groupIds`+`minutes` required for `groups`) |
 | GET | `/devices/me/unlock-requests/:id` | → `UnlockRequest` |

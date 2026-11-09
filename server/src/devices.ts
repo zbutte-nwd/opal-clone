@@ -21,7 +21,8 @@ export function deviceSummary(ctx: Ctx, d: DeviceRow) {
   const states = evaluate(
     { bundle, localGroups: [], localRules: [], sessions: [], pauses: [], usageLimitHits: [] },
     ctx.now(),
-    bundle.timeZone || 'UTC',
+    // Account tz pins evaluation; else the device's reported IANA tz (sent on ack); else UTC.
+    bundle.timeZone || d.time_zone || 'UTC',
   );
   const currentState = bundle.groups.map((g) => {
     const s = states[g.id]!;

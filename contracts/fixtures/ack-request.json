@@ -4,5 +4,6 @@
   "blockedGroupIds": [
     "grp_social"
   ],
-  "authorizationStatus": "approved"
+  "authorizationStatus": "approved",
+  "timeZone": "America/Los_Angeles"
 }
