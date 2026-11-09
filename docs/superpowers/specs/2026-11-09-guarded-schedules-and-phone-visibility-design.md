@@ -1,6 +1,7 @@
 # Guarded schedules + phone visibility/copy: design
 
-Date: 2026-11-09. Status: behavior approved by the user in conversation; reviewed by a builder; "Decisions after the builder review" are tether-dev-agent's calls pending the user's check. Not yet planned or built.
+Date: 2026-11-09. Status: behavior approved by the user; builder-reviewed; Mac/iOS review
+(`2026-11-09-guarded-schedules-ios-review.md`, 77c4aff) folded in. Ready for the build plan; nothing built yet.
 Sources: user conversation with tether-dev-agent (workstation), and the Mac/iOS agent's feasibility notes
 of 2026-11-09 (relayed by the user). Normative engine semantics stay in `docs/ARCHITECTURE.md` §3.
 
@@ -85,7 +86,9 @@ accepted that this leaves the "delete it at 8:59 before a 9:00 start" path open.
 - disable the rule, delete it, edit its trigger/windows/days, change its strictness or action, remove a group
   from it;
 - remove apps/categories/web tokens/domains from any group it references, or delete such a group. Adding
-  apps/sites stays allowed (same rule the Mac agent shipped for strict blocks on 2026-11-09, d1a7bad);
+  apps/sites stays allowed (same rule the Mac agent shipped for strict blocks on 2026-11-09, d1a7bad). This
+  also covers groups of **active server** guarded/strict rules: a server group's app mapping lives on the
+  phone and is editable there, so the server rule being read-only isn't enough (see decision 2);
 - turning protection off is already gated by ProtectionLock and unchanged.
 
 **What the gate is:** the device's **effective ProtectionLock** (the stricter of local and server, existing
@@ -99,8 +102,8 @@ logic in `ProtectionController.effectiveLock`):
 to 1440) and the admin/controller approves it via `approve_unlock`. The approval is an unblock override, which
 beats the guarded rule for that time. The schedule itself is untouched.
 
-**Server-created schedules:** read-only on the phone, so for them `guarded` only means "pausable"
-(server `guarded` ≡ `flexible` in effect). MCP `add_schedule` replaces `strict: boolean` with
+**Server-created schedules:** the rule itself is read-only on the phone, so for it `guarded` means "pausable,
+and its groups can't shrink while it's active" (the mapping gate, decision 2). MCP `add_schedule` replaces `strict: boolean` with
 `strictness: "flexible" | "guarded" | "strict"` (default `flexible`; keep accepting `strict: true` as an alias
 for one release, builder's call). `status` prints the level.
 
@@ -118,6 +121,9 @@ for one release, builder's call). `status` prints the level.
 ```
 - Sent by the app, debounced, after any local mutation, and on sync whenever the hash changed. Not periodic.
   Extensions don't need to send it.
+- Hash = over a canonical encoding of the snapshot **excluding `reportedAt`**. Sent only while paired; the
+  server deletes it with the device on unpair. The phone treats 404/405 from the endpoint as "server not
+  updated yet" (keep it, retry on a later sync).
 - The schema must make app identities impossible: counts only, no token blobs, `additionalProperties: false`.
 - Server: stores the latest snapshot per device (JSON + hash + receivedAt), answers 204 when the hash is
   unchanged, caps the body (~256 KB). Snapshot is replaced, never merged.
@@ -133,10 +139,11 @@ for one release, builder's call). `status` prints the level.
   `BlockGroup.copiedFrom: "lgrp_…"` and the snapshot's webDomains. On bundle apply, the phone copies that local
   group's app/category/web-token selection into the new server group **once**, if the server group has no
   selection yet. If the phone no longer has that `lgrp_`, it ignores `copiedFrom` and the group shows the usual
-  "Choose apps for …".
+  "Choose apps for …". The phone records which server group ids it has already copied into (a set), so
+  a copy carries over exactly once. A user who later clears the copy's apps doesn't get them re-copied.
 - Copying a schedule: copy each referenced local group first (reusing an existing copy of the same `lgrp_` if
   one exists), then create a server rule with the same trigger/action/strictness pointing at the server group
-  ids. The result is server-owned, so it is read-only on the phone (this doubles as a "lock this schedule" button).
+  ids. Referenced server groups (`grp_`) are kept as they are; only `lgrp_` groups are copied. The result is server-owned, so it is read-only on the phone (this doubles as a "lock this schedule" button).
 - Both the original and the copy block the same apps, which is harmless. The controller tells the user they can
   delete the original on the phone if they don't want both.
 
@@ -152,14 +159,28 @@ for one release, builder's call). `status` prints the level.
      Under remoteApproval/osOnly, the refusal message should say this and suggest "ask your assistant to copy
      this schedule to the server" for future emergencies.
    - No phone UI for group unlock requests is built in this project.
-2. **The gate is outcome-based, not a list of fields.** A local change is gated when (a) it touches a
-   guarded rule that is active (any field: enabled, trigger, strictness, action, priority, maxPausesPerDay,
-   groupIds, deletion), or (b) applying it would unblock any group that an active guarded rule is blocking
-   right now. Check (b) by running the engine on before/after state at `now`. This catches new or edited
-   higher-priority allow rules, priority changes, and group shrinking/deletion. Raising `maxPausesPerDay` on an
-   active guarded rule is gated by (a). Adding apps/sites, or creating block rules, is never gated. `guarded`
-   on an `allow`-action rule has no meaning: reject it in validation (schema: `guarded` only with
-   `action: block`, or enforce in Models/server).
+2. **The gate has two parts, both needed.** One shared helper decides "is this rule active":
+   `PolicyEngine.isRuleActive(rule, input, at:, timeZone:)`, extracted from §3 step 3 and used by both the
+   engine and the gate so they can't drift (Swift-only; vectors unaffected).
+   - **(a) Rule/outcome gate.** A local change is gated when it touches an active guarded rule (any field:
+     enabled, trigger, strictness, action, priority, maxPausesPerDay, groupIds, deletion), **or** applying it
+     would unblock any group that an active guarded rule blocks. Check the outcome by running the engine on
+     before/after state at `now` **with active pauses and unblock overrides stripped from the input**.
+     Otherwise a change made during a pause or a server `allow` (both "unblocked" before and after) slips
+     through and outlives the pause. This catches new or edited higher-priority allow rules, priority changes,
+     and deleting a referenced group. Raising `maxPausesPerDay` on an active guarded rule is gated as a field
+     change. Adding apps/sites, or creating block rules, is never gated.
+   - **(b) Mapping (shrink) gate.** The engine works per group, so removing one app from a group's selection
+     changes no group state and (a) can't see it. Keep the token/domain subset check from d1a7bad as its own
+     gate, re-keyed: group g may not lose apps/categories/web tokens/domains while **g is referenced by an
+     enabled block rule (local or server) with strictness ≥ guarded whose trigger is active now, or g is
+     covered right now by a strict session or a block override**. Today's key (`groupStates[g].strict`) is
+     false for guarded blocks and during pauses, so it must change.
+   - The PIN prompt for these gates **shares one lockout counter** with disable-protection (one secret, one
+     throttle). A few typos while editing a schedule can therefore lock out disabling for the lockout period;
+     this is intended.
+   - `guarded` on an `allow`-action rule has no meaning: reject it in validation (schema: `guarded` only with
+     `action: block`, or enforce in Models/server).
 3. **Strict rules get at least the same gate.** Today a local strict rule is only locked while it is the active
    block reason; extend it to the guarded definition ("while active", plus the outcome check) so strict is
    never weaker than guarded.
@@ -170,10 +191,13 @@ for one release, builder's call). `status` prints the level.
    applies to all devices like any server rule; the selection carries over only on the source phone.
 6. **Snapshot is display-only.** "server expects" keeps evaluating server policy only. The phone-made section is
    shown separately and is not fed into the server engine.
-7. **Rollout gap is handled, not assumed away.** iOS decodes an unknown `strictness` as `flexible` and an
-   unknown/absent `copiedFrom` as nothing, and ships first. The server sends `guarded` only to devices whose
-   reported `appVersion` is at or above the first version that understands it (else `flexible`). The phone
-   treats 404 on the snapshot endpoint as "server not updated yet": keep the snapshot and retry on a later sync.
+7. **Rollout is mandatory, keyed on a new app version.** Swift `Strictness` is a closed enum today, so one
+   unknown value fails decoding of the **whole bundle**. The current build would stop applying any policy
+   (device stuck `pending`). Every build so far reports appVersion `0.1.0`, so:
+   - This release bumps `MARKETING_VERSION` to **0.2.0** and ships tolerant decoding (unknown `strictness` →
+     `flexible`, unknown/absent `copiedFrom` → nil). It ships to the phone first.
+   - The server sends `guarded` only to devices reporting appVersion ≥ 0.2.0; others get `flexible`. A device
+     with no reported appVersion counts as old.
 
 ## Contract changes (one commit)
 
@@ -181,6 +205,7 @@ for one release, builder's call). `status` prints the level.
   `lgrp_` id).
 - New `contracts/device-local.schema.json` for the snapshot; `contracts/api.md` + `server/openapi.yaml` for the
   endpoint and for `GET /devices/:id` gaining the snapshot.
+- `MARKETING_VERSION` 0.2.0 (iOS) and the server-side version gate (decision 7).
 - `gen_vectors.py`: guarded vectors (blocking + pause + canPause identical to flexible); regenerate.
 - `Models.swift`/DTOs; server zod schemas, migration (snapshot table/column), route, MCP.
 
