@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tether.dev/schemas/device-local.schema.json",
+  "title": "DeviceLocalSnapshot",
+  "description": "Device -> server, read-only snapshot of phone-made state (PUT /v1/devices/me/local). Display only: the server never evaluates or edits it. NEVER contains app identities: groups carry counts only. `hash` is SHA-256 hex over the canonical (sorted-keys) JSON of every field except `hash` and `reportedAt`.",
+  "type": "object",
+  "required": ["hash", "reportedAt", "groups", "rules", "sessions", "pauses", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "reportedAt": { "type": "string", "format": "date-time" },
+    "groups": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/LocalGroup" } },
+    "rules": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/LocalRule" } },
+    "sessions": { "type": "array", "maxItems": 200, "description": "Active, upcoming, and ended within the last 24 h.",
+                  "items": { "$ref": "https://tether.dev/schemas/engine-input.schema.json#/$defs/FocusSession" } },
+    "pauses": { "type": "array", "maxItems": 200, "description": "Active and upcoming.",
+                "items": { "$ref": "https://tether.dev/schemas/engine-input.schema.json#/$defs/Pause" } },
+    "settings": {
+      "type": "object",
+      "required": ["protectionEnabled", "protectionLock"],
+      "additionalProperties": false,
+      "properties": {
+        "protectionEnabled": { "type": "boolean" },
+        "protectionLock": { "enum": ["partnerPIN", "remoteApproval", "osOnly"], "description": "Effective lock (stricter of local and server)." }
+      }
+    }
+  },
+  "$defs": {
+    "LocalGroup": {
+      "type": "object",
+      "required": ["id", "name", "webDomains", "counts"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^lgrp_[A-Za-z0-9_]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "colorHex": { "type": ["string", "null"], "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "webDomains": { "type": "array", "maxItems": 50, "items": { "type": "string" } },
+        "counts": {
+          "type": "object",
+          "required": ["apps", "categories", "webTokens"],
+          "additionalProperties": false,
+          "properties": {
+            "apps": { "type": "integer", "minimum": 0 },
+            "categories": { "type": "integer", "minimum": 0 },
+            "webTokens": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "LocalRule": {
+      "allOf": [
+        { "$ref": "https://tether.dev/schemas/policy-bundle.schema.json#/$defs/Rule" },
+        { "required": ["source"], "properties": { "source": { "const": "local" } } }
+      ]
+    }
+  }
+}

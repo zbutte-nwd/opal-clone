@@ -1,0 +1,21 @@
+{
+  "hash": "4f1c2e3a5b6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8",
+  "reportedAt": "2026-11-09T17:05:00Z",
+  "groups": [
+    { "id": "lgrp_socials1", "name": "Socials", "colorHex": "#FF5A5F", "webDomains": ["instagram.com"],
+      "counts": { "apps": 3, "categories": 1, "webTokens": 0 } }
+  ],
+  "rules": [
+    { "id": "lrule_work1", "name": "Work", "groupIds": ["lgrp_socials1"], "enabled": true, "action": "block",
+      "trigger": { "type": "schedule", "windows": [ { "days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00" } ] },
+      "strictness": "guarded", "priority": 0, "maxPausesPerDay": 3, "source": "local" }
+  ],
+  "sessions": [
+    { "id": "ses_1", "name": "Deep work", "groupIds": ["lgrp_socials1", "grp_social"], "startsAt": "2026-11-09T16:30:00Z",
+      "endsAt": "2026-11-09T17:30:00Z", "strict": false, "endedAt": null }
+  ],
+  "pauses": [
+    { "id": "pau_1", "groupIds": ["lgrp_socials1"], "startsAt": "2026-11-09T17:00:00Z", "endsAt": "2026-11-09T17:05:00Z", "ruleId": "lrule_work1" }
+  ],
+  "settings": { "protectionEnabled": true, "protectionLock": "partnerPIN" }
+}

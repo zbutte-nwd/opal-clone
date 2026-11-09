@@ -72,6 +72,8 @@ vec("end 24:00 active at 23:59", t(f"{MON}T23:59"), inp(bundle([rule("rule_eve",
 vec("end 24:00 inactive at next midnight", t(f"{TUE}T00:00"), inp(bundle([rule("rule_eve",["grp_news"],EVE)])), E())
 vec("start equals end is never active", t(f"{MON}T09:00"), inp(bundle([rule("rule_bad",["grp_news"],sched(([1],"09:00","09:00")))])), E())
 vec("strict rule marks strict", t(f"{MON}T09:00"), inp(bundle([rule("rule_school",["grp_social"],SCHOOL,strictness="strict")])), E(grp_social=B("rule","rule_school",True)))
+vec("guarded rule blocks like flexible", t(f"{MON}T09:00"), inp(bundle([rule("rule_school",["grp_social"],SCHOOL,strictness="guarded")])), E(grp_social=B("rule","rule_school")),
+    note="guarded = flexible for the engine; the guard is an app-side edit lock")
 vec("disabled rule ignored", t(f"{MON}T09:00"), inp(bundle([rule("rule_school",["grp_social"],SCHOOL,enabled=False)])), E())
 vec("manual rule active", t(f"{SAT}T12:00"), inp(bundle([rule("rule_hw",["grp_games"],{"type":"manual","active":True})])), E(grp_games=B("rule","rule_hw")))
 vec("manual rule inactive", t(f"{SAT}T12:00"), inp(bundle([rule("rule_hw",["grp_games"],{"type":"manual","active":False})])), E())
@@ -118,6 +120,9 @@ vec("expired pause has no effect", t(f"{MON}T09:05"),
 vec("pause cannot lift strict rule", t(f"{MON}T09:02"),
     inp(bundle([rule("rule_school",["grp_social"],SCHOOL,strictness="strict")]),pauses=[P("pau_1",["grp_social"],t(f"{MON}T09:00"),t(f"{MON}T09:05"))]),
     E(grp_social=B("rule","rule_school",True)))
+vec("guarded rule is pausable", t(f"{MON}T09:02"),
+    inp(bundle([rule("rule_school",["grp_social"],SCHOOL,strictness="guarded")]),pauses=[P("pau_1",["grp_social"],t(f"{MON}T09:00"),t(f"{MON}T09:05"),"rule_school")]),
+    E(grp_social=U("pause","pau_1")))
 vec("pause lifts flexible session", t(f"{SAT}T10:10"),
     inp(bundle(),sessions=[S("ses_1",["grp_social"],t(f"{SAT}T10:00"),t(f"{SAT}T10:25"))],pauses=[P("pau_1",["grp_social"],t(f"{SAT}T10:09"),t(f"{SAT}T10:14"))]),
     E(grp_social=U("pause","pau_1")))
