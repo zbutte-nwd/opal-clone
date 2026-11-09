@@ -72,6 +72,16 @@ final class StubPlatformServices: PlatformServices {
 
     func disableProtectionAfterRemoteApproval(requestId: String) throws { try finishDisable() }
 
+    var effectiveProtectionLock: ProtectionLock { (try? stateStore.load().protection.lock) ?? .partnerPIN }
+
+    func authorizeGuardedChange(pin: String?) throws {
+        guard (try? stateStore.load().protection.enabled) == true else { return }
+        switch effectiveProtectionLock {
+        case .partnerPIN: guard let pin, pin == self.pin else { throw PlatformError.wrongPIN }
+        case .remoteApproval, .osOnly: throw PlatformError.message("This schedule is active, so it can't be changed until it ends.")
+        }
+    }
+
     private func finishDisable() throws {
         _ = try stateStore.update {
             $0.protection.enabled = false

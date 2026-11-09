@@ -9,6 +9,7 @@ struct RuleEditorView: View {
     @State private var draft = RuleDraft()
     @State private var loaded = false
     @State private var showErrors = false
+    @State private var guardTrigger = 0
 
     var body: some View {
         Form {
@@ -59,23 +60,25 @@ struct RuleEditorView: View {
             }
 
             Section {
-                Picker("Strictness", selection: $draft.strict) {
-                    Text("Flexible — pausing allowed").tag(false)
-                    Text("Strict — no pauses").tag(true)
+                Picker("Strictness", selection: $draft.strictness) {
+                    Text("Flexible — pause or change anytime").tag(Strictness.flexible)
+                    Text("Guarded — pausable, locked while active").tag(Strictness.guarded)
+                    Text("Strict — no pauses, locked while active").tag(Strictness.strict)
                 }
-                if !draft.strict {
+                if draft.strictness != .strict {
                     Toggle("Limit pauses per day", isOn: $draft.limitPauses)
                     if draft.limitPauses { Stepper("Max pauses: \(draft.maxPauses)", value: $draft.maxPauses, in: 0...20) }
                 }
                 Toggle("Enabled", isOn: $draft.enabled)
             } header: { Text("Strictness") } footer: {
-                Text("A strict rule can't be paused, edited or turned off while it is blocking.")
+                Text("While a guarded or strict schedule is active, turning it off, editing or deleting it, or removing apps from its groups needs your Protection Lock (partner PIN). Guarded schedules can still be paused.")
             }
 
             if showErrors && !draft.errors.isEmpty {
                 Section { ForEach(draft.errors, id: \.self) { Label($0, systemImage: "exclamationmark.circle").foregroundStyle(.red).font(.footnote) } }
             }
         }
+        .guardedChangePrompt(trigger: guardTrigger) { dismiss() }
         .navigationTitle(ruleId == nil ? "New schedule" : "Edit schedule")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -91,8 +94,7 @@ struct RuleEditorView: View {
 
     private func save() {
         guard draft.errors.isEmpty else { showErrors = true; return }
-        model.saveRule(draft.makeRule())
-        dismiss()
+        if model.saveRule(draft.makeRule()) { dismiss() } else { guardTrigger += 1 }
     }
 
     /// Bridges minutes-since-midnight to the Date a DatePicker wants (today's date; only h:m matter).

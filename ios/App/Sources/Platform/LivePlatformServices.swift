@@ -71,6 +71,8 @@ final class LivePlatformServices: PlatformServices {
     }
 
     func changePIN(old: String, new: String) throws { try protection.changePIN(old: old, new: new) }
+    var effectiveProtectionLock: ProtectionLock { protection.effectiveLock }
+    func authorizeGuardedChange(pin: String?) throws { try protection.authorizeGuardedChange(pin: pin) }
 
     // MARK: Server
 

@@ -24,7 +24,7 @@ struct RuleDraft {
     var windows: [WindowDraft] = [WindowDraft()]
     var limitMinutes = 30
     var limitDays: Set<ISOWeekday> = [1, 2, 3, 4, 5, 6, 7]
-    var strict = false
+    var strictness: Strictness = .flexible
     var limitPauses = true
     var maxPauses = 3
     var priority = 0
@@ -33,7 +33,7 @@ struct RuleDraft {
 
     init?(rule: Rule) {
         id = rule.id; name = rule.name; groupIds = Set(rule.groupIds); enabled = rule.enabled
-        strict = rule.strictness == .strict; priority = rule.priority
+        strictness = rule.strictness; priority = rule.priority
         if let m = rule.maxPausesPerDay { limitPauses = true; maxPauses = m } else { limitPauses = false }
         switch rule.trigger {
         case .schedule(let ws):
@@ -77,8 +77,8 @@ struct RuleDraft {
             trigger = .usageLimit(dailyMinutes: limitMinutes, days: limitDays.sorted())
         }
         return Rule(id: id, name: name.trimmingCharacters(in: .whitespaces), groupIds: groupIds.sorted(), enabled: enabled,
-                    action: .block, trigger: trigger, strictness: strict ? .strict : .flexible, priority: priority,
-                    maxPausesPerDay: (!strict && limitPauses) ? maxPauses : nil, source: source)
+                    action: .block, trigger: trigger, strictness: strictness, priority: priority,
+                    maxPausesPerDay: (strictness != .strict && limitPauses) ? maxPauses : nil, source: source)
     }
 }
 

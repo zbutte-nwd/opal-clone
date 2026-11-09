@@ -267,81 +267,139 @@ final class AppModel {
         defaults.set(Array(hardeningChecks), forKey: Key.hardening)
     }
 
+    // MARK: Guarded/strict schedule gate (TetherCore.ScheduleGuard)
+
+    /// A change held until the partner PIN is entered because an active guarded/strict schedule is involved.
+    struct PendingGuardedChange: Identifiable {
+        let id = UUID()
+        let reason: String
+        let apply: () -> Void
+    }
+    var pendingGuardedChange: PendingGuardedChange?
+
+    static let guardedHint = "For a holiday or emergency, ask your admin to unlock it, or ask your assistant to copy "
+        + "this schedule to the server so it can be unlocked remotely."
+
+    /// Runs `apply` now when allowed (or protection is off). Otherwise holds it for the PIN (partnerPIN, see
+    /// `pendingGuardedChange`) or refuses with `lastError` (remoteApproval/osOnly). Returns whether it ran.
+    private func gate(_ decision: GuardDecision, _ apply: @escaping () -> Void) -> Bool {
+        guard case .locked(let reason) = decision, state.protection.enabled else { apply(); return true }
+        if platform.effectiveProtectionLock == .partnerPIN {
+            pendingGuardedChange = PendingGuardedChange(reason: reason, apply: apply)
+        } else {
+            lastError = reason + " " + Self.guardedHint
+        }
+        return false
+    }
+
+    /// The PIN for `pendingGuardedChange` (shared throttle with disable-protection). nil on success.
+    func confirmGuardedChange(pin: String) -> String? {
+        guard let p = pendingGuardedChange else { return nil }
+        do { try platform.authorizeGuardedChange(pin: pin) } catch { return error.localizedDescription }
+        pendingGuardedChange = nil
+        p.apply()
+        return nil
+    }
+
+    /// ScheduleGuard verdict for a change to local rules/groups, simulated on a copy of the state.
+    private func ruleDecision(_ body: (inout PersistedState) throws -> Void) -> GuardDecision {
+        var after = state
+        guard (try? body(&after)) != nil else { return .allowed }   // the real mutation reports the error
+        return ScheduleGuard.ruleChange(before: state.engineInput, after: after.engineInput, at: Date(), timeZone: timeZone)
+    }
+
+    /// A group may gain apps/sites but not lose any while an active guarded/strict schedule, a strict
+    /// session or a server block covers it (pauses don't unlock it). `selection == nil` means deletion.
+    private func shrinkDecision(_ gid: GroupID, selection: FamilyActivitySelection?, domains: [String]? = nil) -> GuardDecision {
+        let now = Date()
+        guard ScheduleGuard.isShrinkLocked(groupId: gid, input, at: now, timeZone: timeZone) else { return .allowed }
+        if let selection {
+            let old = platform.selection(for: gid)
+            let lostSites = domains.map { d in !Set(group(gid)?.webDomains ?? []).isSubset(of: Set(d)) } ?? false
+            guard lostSites
+                || !old.applicationTokens.isSubset(of: selection.applicationTokens)
+                || !old.categoryTokens.isSubset(of: selection.categoryTokens)
+                || !old.webDomainTokens.isSubset(of: selection.webDomainTokens) else { return .allowed }
+        }
+        let name = ScheduleGuard.lockingRule(for: gid, input, at: now, timeZone: timeZone)?.name
+        return .locked(reason: name.map { "“\($0)” is active, so its groups can't lose apps or sites until it ends." }
+                       ?? "A strict block is active right now, so this group can't lose apps or sites until it ends.")
+    }
+
+    private func firstLocked(_ ds: GuardDecision...) -> GuardDecision {
+        ds.first { if case .locked = $0 { return true } else { return false } } ?? .allowed
+    }
+
     // MARK: Groups
 
-    /// During a strict block a group may gain apps/sites but not lose any: shrinking the selection
-    /// would end the block early (strict rules, Deep Focus, and every server block).
     @discardableResult
     func setSelection(_ selection: FamilyActivitySelection, for gid: GroupID) -> Bool {
-        if wouldShrinkStrictGroup(gid, selection: selection) { lastError = Self.strictMessage; return false }
+        gate(shrinkDecision(gid, selection: selection)) { [weak self] in self?.applySelection(selection, for: gid) }
+    }
+
+    private func applySelection(_ selection: FamilyActivitySelection, for gid: GroupID) {
         platform.setSelection(selection, for: gid)
         selectionRevision += 1
         platform.reconcile(now: Date())
         refresh()
-        return true
-    }
-
-    private func wouldShrinkStrictGroup(_ gid: GroupID, selection: FamilyActivitySelection, domains: [String]? = nil) -> Bool {
-        guard groupStates[gid]?.strict == true else { return false }
-        let old = platform.selection(for: gid)
-        if let domains, let cur = allGroups.first(where: { $0.id == gid }), !Set(cur.webDomains).isSubset(of: Set(domains)) { return true }
-        return !old.applicationTokens.isSubset(of: selection.applicationTokens)
-            || !old.categoryTokens.isSubset(of: selection.categoryTokens)
-            || !old.webDomainTokens.isSubset(of: selection.webDomainTokens)
     }
 
     @discardableResult
     func saveGroup(id: GroupID?, name: String, colorHex: String?, domains: [String], selection: FamilyActivitySelection) -> GroupID? {
         let gid = id ?? TetherID.make("lgrp")
-        if wouldShrinkStrictGroup(gid, selection: selection, domains: domains) { lastError = Self.strictMessage; return nil }
-        let ok = mutate { s in
-            if let i = s.localGroups.firstIndex(where: { $0.id == gid }) {
-                s.localGroups[i].name = name; s.localGroups[i].colorHex = colorHex; s.localGroups[i].webDomains = domains
-            } else {
-                s.localGroups.append(BlockGroup(id: gid, name: name, colorHex: colorHex, webDomains: domains, source: .local))
+        var saved: GroupID?
+        let ran = gate(shrinkDecision(gid, selection: selection, domains: domains)) { [weak self] in
+            guard let self else { return }
+            let ok = self.mutate { s in
+                if let i = s.localGroups.firstIndex(where: { $0.id == gid }) {
+                    s.localGroups[i].name = name; s.localGroups[i].colorHex = colorHex; s.localGroups[i].webDomains = domains
+                } else {
+                    s.localGroups.append(BlockGroup(id: gid, name: name, colorHex: colorHex, webDomains: domains, source: .local))
+                }
             }
+            if ok { self.applySelection(selection, for: gid); saved = gid }
         }
-        guard ok, setSelection(selection, for: gid) else { return nil }
-        return gid
+        return ran ? saved : nil
     }
 
-    private static let strictMessage = "A strict block is active right now, so this can't be changed until it ends."
-
-    func deleteGroup(_ gid: GroupID) {
-        if groupStates[gid]?.strict == true { lastError = Self.strictMessage; return }
-        mutate { s in
+    @discardableResult
+    func deleteGroup(_ gid: GroupID) -> Bool {
+        let body: (inout PersistedState) -> Void = { s in
             s.localGroups.removeAll { $0.id == gid }
             for i in s.localRules.indices { s.localRules[i].groupIds.removeAll { $0 == gid } }
             s.localRules.removeAll { $0.groupIds.isEmpty }
         }
-        platform.removeSelection(for: gid)
-        selectionRevision += 1
+        return gate(firstLocked(shrinkDecision(gid, selection: nil), ruleDecision(body))) { [weak self] in
+            guard let self else { return }
+            self.mutate(body)
+            self.platform.removeSelection(for: gid)
+            self.selectionRevision += 1
+        }
     }
 
     // MARK: Rules
 
-    /// True while a strict block caused by this rule is in force (editing would loosen it).
-    private func isStrictlyLocked(_ ruleId: RuleID) -> Bool {
-        groupStates.values.contains { $0.strict && $0.reason.kind == .rule && $0.reason.id == ruleId }
-    }
-
-    func saveRule(_ rule: Rule) {
-        if isStrictlyLocked(rule.id) { lastError = Self.strictMessage; return }
-        guard allowLocalRules else { lastError = "Your admin has turned off local schedules on this device."; return }
-        mutate { s in
+    @discardableResult
+    func saveRule(_ rule: Rule) -> Bool {
+        guard allowLocalRules else { lastError = "Your admin has turned off local schedules on this device."; return false }
+        if rule.strictness == .guarded && rule.action != .block { lastError = "Only block schedules can be guarded."; return false }
+        let body: (inout PersistedState) -> Void = { s in
             if let i = s.localRules.firstIndex(where: { $0.id == rule.id }) { s.localRules[i] = rule }
             else { s.localRules.append(rule) }
         }
+        return gate(ruleDecision(body)) { [weak self] in self?.mutate(body) }
     }
 
-    func deleteRule(_ id: RuleID) {
-        if isStrictlyLocked(id) { lastError = Self.strictMessage; return }
-        mutate { $0.localRules.removeAll { $0.id == id } }
+    @discardableResult
+    func deleteRule(_ id: RuleID) -> Bool {
+        let body: (inout PersistedState) -> Void = { $0.localRules.removeAll { $0.id == id } }
+        return gate(ruleDecision(body)) { [weak self] in self?.mutate(body) }
     }
 
-    func setRuleEnabled(_ id: RuleID, _ on: Bool) {
-        if !on && isStrictlyLocked(id) { lastError = Self.strictMessage; return }
-        mutate { s in if let i = s.localRules.firstIndex(where: { $0.id == id }) { s.localRules[i].enabled = on } }
+    @discardableResult
+    func setRuleEnabled(_ id: RuleID, _ on: Bool) -> Bool {
+        let body: (inout PersistedState) -> Void = { s in if let i = s.localRules.firstIndex(where: { $0.id == id }) { s.localRules[i].enabled = on } }
+        return gate(ruleDecision(body)) { [weak self] in self?.mutate(body) }
     }
 
     // MARK: Sessions & pauses
