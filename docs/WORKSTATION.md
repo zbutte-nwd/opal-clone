@@ -47,7 +47,9 @@ tailscale serve --bg 8787       # persists across reboots; publishes https://<pc
 # then PUBLIC_BASE_URL (in .env) and every URL below carry :47443.
 ```
 The task "Tether Server" starts at boot without a login, restarts if it exits, and logs to
-`server\data\server.log`.
+`server\data\server.log`. Restart it with `install-windows.ps1 -Restart` (elevated), not
+`Stop-/Start-ScheduledTask`: stopping the task only ends its `cmd.exe` wrapper, the node process keeps
+the port and the new start can't bind.
 
 Linux instead: a systemd user unit, then `loginctl enable-linger $USER`:
 ```ini
@@ -96,10 +98,10 @@ the phone (Apple privacy rule); the server only knows group names and websites.
 | New agent key | `npm run cli -- apikey <name>` |
 | Revoke a key | admin dashboard, or `DELETE /v1/api-keys/:id` with an admin login |
 | Add APNs later | `npm run setup -- --apns-key <file.p8> --apns-key-id <id>` then restart |
-| Restart | `Stop-ScheduledTask 'Tether Server'; Start-ScheduledTask 'Tether Server'` |
+| Restart | elevated: `powershell -ExecutionPolicy Bypass -File workstation\install-windows.ps1 -Restart` |
 | Update | `git pull; npm ci --ignore-scripts; npm test; npm run build;` then restart |
 | Logs | `Get-Content data\server.log -Tail 50 -Wait` |
-| Backup | copy `server\data\tether.db*` and `server\.env` (stop the task first) |
+| Backup | copy `server\data\tether.db*` and `server\.env` (elevated `install-windows.ps1 -Stop` first, `-Restart` after) |
 
 Troubleshooting: phone shows device `pending` → it hasn't fetched the latest policy (no push token / no
 APNs; open Tether). `401` from MCP → wrong/revoked key. HTTPS URL not answering → `tailscale serve status`
