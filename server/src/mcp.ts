@@ -7,6 +7,7 @@ import { adminAuth } from './auth/plugin.js';
 import { VERSION } from './config.js';
 import type { Ctx } from './context.js';
 import { forbidden } from './errors.js';
+import { RuleInputSchema } from './policy/schemas.js';
 import { isValidTimeZone } from './util.js';
 
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
@@ -93,14 +94,14 @@ const TOOLS = [
 class ToolError extends Error {}
 type Json = any; // REST responses, shaped by contracts/api.md
 
-interface Group { id: string; name: string; webDomains: string[]; colorHex?: string | null }
+interface Group { id: string; name: string; webDomains: string[]; colorHex?: string | null; copiedFrom?: string }
 interface Rule { id: string; name: string; groupIds: string[]; enabled: boolean; action: string; strictness: string;
   trigger: { type: string; windows?: { days: number[]; start: string; end: string }[]; active?: boolean; dailyMinutes?: number } }
 interface Unlock { id: string; deviceName: string | null; kind: 'groups' | 'disableProtection'; groupIds: string[];
   minutes: number | null; reason: string | null; status: string; createdAt: string; expiresAt: string; note: string | null }
 interface LocalSnapshot {
   groups: { id: string; name: string; colorHex?: string | null; webDomains: string[]; counts: { apps: number; categories: number; webTokens: number } }[];
-  rules: (Rule & { maxPausesPerDay?: number | null })[];
+  rules: (Rule & { priority?: number; maxPausesPerDay?: number | null })[];
   sessions: { id: string; name?: string | null; groupIds: string[]; startsAt: string; endsAt: string; strict: boolean; endedAt?: string | null }[];
   pauses: { id: string; groupIds: string[]; startsAt: string; endsAt: string; ruleId?: string | null }[];
   settings: { protectionEnabled: boolean; protectionLock: string };
@@ -254,58 +255,84 @@ async function timedOverride(s: Session, now: Date, a: Args, action: 'block' | '
 type LocalGroup = LocalSnapshot['groups'][number];
 const DOMAIN = /^[a-z0-9.-]+\.[a-z]{2,}$/;
 
+const canon = (v: unknown): string => JSON.stringify(v, (_k, x) =>
+  x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([p], [q]) => (p < q ? -1 : 1))) : x);
+
 async function copyFromPhone(s: Session, a: Args): Promise<string> {
   if (!!a.group === !!a.schedule) throw new ToolError('Give exactly one of group or schedule');
-  const devices = (await s.api('GET', '/devices')).devices as { id: string; name: string; local: { snapshot: LocalSnapshot } | null }[];
+  const devices = (await s.api('GET', '/devices')).devices as { id: string; name: string; local: { snapshot: LocalSnapshot | null } | null }[];
   if (!devices.length) throw new ToolError('No device is paired yet (use pairing_code).');
   if (!a.device && devices.length > 1) throw new ToolError(`Several devices are paired; give device: ${devices.map((d) => d.name).join(', ')}`);
   const dev = a.device ? findByNameOrId(devices, a.device, 'device') : devices[0]!;
   const sn = dev.local?.snapshot;
   if (!sn) throw new ToolError(`${dev.name}: the phone hasn't reported yet (needs app 0.2.0+; open Tether on the phone).`);
-  const known = (list: { name: string }[]) => list.map((x) => x.name).join(', ') || 'none';
   const find = <T extends { id: string; name: string }>(list: T[], ref: string, what: string): T => {
     const k = ref.trim().toLowerCase();
     const hit = list.find((x) => x.id === ref.trim()) ?? list.find((x) => x.name.toLowerCase() === k);
-    if (!hit) throw new ToolError(`Unknown phone-made ${what} "${ref}". Known: ${known(list)}`);
+    if (!hit) throw new ToolError(`Unknown phone-made ${what} "${ref}". Known: ${list.map((x) => x.name).join(', ') || 'none'}`);
     return hit;
   };
-  const serverGroups = await s.groups() as (Group & { copiedFrom?: string })[];
-  // One server copy per phone group: reuse an earlier copy instead of creating a second one.
+  const serverGroups = await s.groups();
+  const dropped: string[] = [];
+  // One server copy per phone group (POST /groups also returns an existing copy). A new copy whose name is
+  // already taken by another server group gets " (phone)", so group names in block/allow stay unambiguous.
   const copyGroup = async (lg: LocalGroup, name?: string): Promise<{ g: Group; reused: boolean }> => {
     const existing = serverGroups.find((g) => g.copiedFrom === lg.id);
     if (existing) return { g: existing, reused: true };
-    const g: Group & { copiedFrom?: string } = await s.api('POST', '/groups', {
-      name: name ?? lg.name, webDomains: lg.webDomains.map((d) => d.toLowerCase()).filter((d) => DOMAIN.test(d)),
-      ...(lg.colorHex ? { colorHex: lg.colorHex } : {}),
-      copiedFrom: lg.id,
+    let n = name ?? lg.name;
+    if (!name && serverGroups.some((g) => g.name.toLowerCase() === n.toLowerCase())) n = `${n.slice(0, 52)} (phone)`;
+    const domains = lg.webDomains.map((d) => d.trim().toLowerCase());
+    dropped.push(...lg.webDomains.filter((_d, i) => !DOMAIN.test(domains[i]!)));
+    const g: Group = await s.api('POST', '/groups', {
+      name: n, webDomains: [...new Set(domains.filter((d) => DOMAIN.test(d)))], ...(lg.colorHex ? { colorHex: lg.colorHex } : {}), copiedFrom: lg.id,
     });
     serverGroups.push(g);
     return { g, reused: false };
   };
   const carry = 'The original stays on the phone; the apps carry over to the copy the next time the phone syncs (no need to pick them again).';
+  const droppedNote = () => (dropped.length ? ` Websites not copied (not a valid domain): ${dropped.join(', ')}.` : '');
   if (a.group) {
     const lg = find(sn.groups, a.group, 'group');
     const { g, reused } = await copyGroup(lg, a.name);
     return reused ? `${lg.name} was already copied as server group ${g.name} id=${g.id}; nothing new created.`
-      : `Copied phone group ${lg.name} to server group ${g.name} id=${g.id}. ${carry}`;
+      : `Copied phone group ${lg.name} to server group ${g.name} id=${g.id}. ${carry}${droppedNote()}`;
   }
   const r = find(sn.rules, a.schedule, 'schedule');
+  // Check everything before creating anything, so a refused schedule leaves no stray group copies behind.
+  const sources = r.groupIds.map((gid) => {
+    if (gid.startsWith('lgrp_')) {
+      const lg = sn.groups.find((g) => g.id === gid);
+      if (!lg) throw new ToolError(`Schedule ${r.name} uses a phone group the phone didn't report (${gid}); nothing copied.`);
+      return lg;
+    }
+    if (!serverGroups.some((g) => g.id === gid)) throw new ToolError(`Schedule ${r.name} uses server group ${gid}, which no longer exists; nothing copied.`);
+    return gid;
+  });
+  const body = {
+    name: a.name ?? r.name, enabled: r.enabled, action: r.action, trigger: r.trigger, strictness: r.strictness,
+    priority: r.priority ?? 0, maxPausesPerDay: r.maxPausesPerDay ?? null,
+  };
+  const check = RuleInputSchema.safeParse({ ...body, groupIds: ['placeholder'] });
+  if (!check.success) {
+    throw new ToolError(`The server can't take schedule ${r.name} as is (${check.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}); nothing copied.`);
+  }
+  // A retried copy (e.g. after a timeout) reuses the earlier one instead of adding a second identical schedule.
+  const already = (await s.rules()).find((x) => x.name.toLowerCase() === body.name.trim().toLowerCase() && x.action === body.action
+    && x.strictness === body.strictness && canon(x.trigger) === canon(body.trigger) && x.groupIds.length === sources.length
+    && sources.every((src) => (typeof src === 'string' ? x.groupIds.includes(src)
+      : x.groupIds.some((id) => serverGroups.find((g) => g.id === id)?.copiedFrom === src.id))));
+  if (already) return `${r.name} was already copied as server schedule ${already.name} id=${already.id}; nothing new created.`;
   const ids: string[] = [];
   const made: string[] = [];
-  for (const gid of r.groupIds) {
-    if (!gid.startsWith('lgrp_')) { ids.push(gid); continue; }
-    const lg = sn.groups.find((g) => g.id === gid);
-    if (!lg) throw new ToolError(`Schedule ${r.name} uses a phone group the phone didn't report (${gid}).`);
-    const { g, reused } = await copyGroup(lg);
+  for (const src of sources) {
+    if (typeof src === 'string') { ids.push(src); continue; }
+    const { g, reused } = await copyGroup(src);
     ids.push(g.id);
     if (!reused) made.push(g.name);
   }
-  const rule: Rule = await s.api('POST', '/rules', {
-    name: a.name ?? r.name, groupIds: ids, enabled: r.enabled, action: r.action, trigger: r.trigger, strictness: r.strictness,
-    priority: (r as { priority?: number }).priority ?? 0, maxPausesPerDay: r.maxPausesPerDay ?? null,
-  });
+  const rule: Rule = await s.api('POST', '/rules', { ...body, groupIds: ids });
   return `Copied phone schedule ${r.name} to server schedule ${rule.name} id=${rule.id}`
-    + `${made.length ? ` (new server groups: ${made.join(', ')})` : ''}. ${carry}`;
+    + `${made.length ? ` (new server groups: ${made.join(', ')})` : ''}. ${carry}${droppedNote()}`;
 }
 
 function unlockWhat(r: Unlock, gname: (id: string) => string, minutes = r.minutes): string {
@@ -331,11 +358,13 @@ function describeTrigger(t: Rule['trigger']): string {
 }
 
 /** Phone-made state from the device's read-only snapshot: one line per section, empty sections omitted. */
-function phoneMade(local: { receivedAt: string; snapshot: LocalSnapshot } | null, gname: (id: string) => string, serverRules: Rule[], tz: string, now: Date): string[] {
+function phoneMade(local: { receivedAt: string; snapshot: LocalSnapshot } | null, lastSeen: string | null, gname: (id: string) => string, serverRules: Rule[], tz: string, now: Date): string[] {
   if (!local) return ['    phone-made: not reported yet (app 0.2.0+ needed)'];
   const sn = local.snapshot;
   const t = now.getTime();
-  const L = [`    phone-made (as of ${fmtTime(local.receivedAt, tz, now)}): protection ${sn.settings.protectionEnabled ? 'ON' : 'OFF'}, lock ${sn.settings.protectionLock}`];
+  // The phone re-sends only when something changed, so receivedAt = last change; lastSeen = last contact.
+  const seen = lastSeen ? `, phone last seen ${fmtTime(lastSeen, tz, now)}` : '';
+  const L = [`    phone-made (changed ${fmtTime(local.receivedAt, tz, now)}${seen}): protection ${sn.settings.protectionEnabled ? 'ON' : 'OFF'}, lock ${sn.settings.protectionLock}`];
   if (sn.groups.length) L.push('      groups: ' + sn.groups.map((g) => {
     const c = [g.counts.apps ? plural(g.counts.apps, 'app') : '', g.counts.categories ? plural(g.counts.categories, 'category', 'categories') : '',
       g.counts.webTokens ? plural(g.counts.webTokens, 'picked site') : '', g.webDomains.length ? `sites: ${g.webDomains.join(', ')}` : ''].filter(Boolean);
@@ -369,7 +398,7 @@ async function status(s: Session, now: Date): Promise<string> {
   L.push('', 'Devices:');
   if (!devices.devices.length) L.push('  none paired (use pairing_code)');
   for (const d of devices.devices) {
-    const local = (d.local ?? null) as { receivedAt: string; snapshot: LocalSnapshot } | null;
+    const local = (d.local?.snapshot ? d.local : null) as { receivedAt: string; snapshot: LocalSnapshot } | null;
     const dname = (id: string) => local?.snapshot.groups.find((g) => g.id === id)?.name ?? gname(id);
     // Server view: what the policy says should be blocked now. Phone view: what the device last acked.
     const blocked = (d.currentState as { groupId: string; blocked: boolean }[]).filter((x) => x.blocked).map((x) => gname(x.groupId));
@@ -387,7 +416,7 @@ async function status(s: Session, now: Date): Promise<string> {
     const extra = [d.protectionEnabled === false ? 'protection OFF' : '', d.authorizationStatus && d.authorizationStatus !== 'approved' ? `Screen Time access ${d.authorizationStatus}` : '']
       .filter(Boolean).join(', ');
     L.push(`    phone reports (${ver}): ${what}${extra ? ` | ${extra}` : ''}`);
-    L.push(...phoneMade(local, dname, rules, tz, now));
+    L.push(...phoneMade(local, d.lastSeenAt ?? null, dname, rules, tz, now));
   }
   const list = overrides.overrides as Override[];
   const active = list.filter((o) => Date.parse(o.startsAt) <= now.getTime());
@@ -397,7 +426,14 @@ async function status(s: Session, now: Date): Promise<string> {
     + ` until ${o.endsAt ? fmtTime(o.endsAt, tz, now) : 'ended'}${o.reason ? ` "${o.reason}"` : ''} id=${o.id}`;
   L.push('', 'Active blocks/allows:', ...(active.length ? active.map(line) : ['  none']));
   if (upcoming.length) L.push('', 'Upcoming:', ...upcoming.map(line));
-  L.push('', 'Groups:', ...(groups.length ? groups.map((g) => `  ${g.name}${g.webDomains.length ? ' (sites: ' + g.webDomains.join(', ') + ')' : ''} id=${g.id}`) : ['  none']));
+  const phoneGroupName = (lid: string) => {
+    for (const d of devices.devices) { const n = d.local?.snapshot?.groups?.find((x: { id: string }) => x.id === lid)?.name; if (n) return n as string; }
+    return lid;
+  };
+  L.push('', 'Groups:', ...(groups.length ? groups.map((g) => {
+    const notes = [g.copiedFrom ? `copy of phone group ${phoneGroupName(g.copiedFrom)}` : '', g.webDomains.length ? `sites: ${g.webDomains.join(', ')}` : ''].filter(Boolean);
+    return `  ${g.name}${notes.length ? ` (${notes.join('; ')})` : ''} id=${g.id}`;
+  }) : ['  none']));
   L.push('', 'Schedules & modes:');
   if (!rules.length) L.push('  none');
   for (const r of rules) {

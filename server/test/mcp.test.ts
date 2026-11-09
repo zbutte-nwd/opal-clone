@@ -163,7 +163,7 @@ describe('mcp phone-made visibility', () => {
 
     expect((await h.req('PUT', '/v1/devices/me/local', dev.deviceToken, localFixture())).status).toBe(204);
     const st = (await tool('status')).text;
-    expect(st).toContain('    phone-made (as of 9:00 AM): protection ON, lock partnerPIN');
+    expect(st).toContain('    phone-made (changed 9:00 AM, phone last seen 9:00 AM): protection ON, lock partnerPIN');
     expect(st).toContain('      groups: Socials (3 apps, 1 category, sites: instagram.com) id=lgrp_socials1');
     expect(st).toContain('      schedules: Work: block Socials | mon,tue,wed,thu,fri 09:00-17:00 | guarded | max 3 pauses/day id=lrule_work1');
     // At 9:00 PST the 8:30-9:30 session is active and the 9:00-9:05 pause is active.
@@ -240,6 +240,58 @@ describe('copy_from_phone', () => {
     expect((await tool('copy_from_phone', { group: 'Nope', device: 'zakir iphone' })).text).toBe('Unknown phone-made group "Nope". Known: Socials');
     expect((await tool('copy_from_phone', { device: 'Zakir iPhone' })).isError).toBe(true);
     expect((await tool('copy_from_phone', { group: 'Socials', device: 'Old phone' })).text).toContain("phone hasn't reported yet");
+  });
+});
+
+describe('copy_from_phone (review fixes)', () => {
+  async function snap(mut: (s: any) => void) {
+    const t = await setup();
+    const sn = localFixture();
+    mut(sn);
+    expect((await t.h.req('PUT', '/v1/devices/me/local', t.dev.deviceToken, sn)).status).toBe(204);
+    const groups = async () => (await t.h.req('GET', '/v1/groups', t.token)).json.groups;
+    return { ...t, groups };
+  }
+
+  it('a schedule the server would reject creates nothing (no stray group copies)', async () => {
+    const t = await snap((s) => { s.rules[0].trigger.windows[0].end = '09:00'; });
+    const r = await t.tool('copy_from_phone', { schedule: 'Work' });
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('start and end must differ');
+    expect(await t.groups()).toHaveLength(0);
+    const u = await snap((s) => { s.rules[0].groupIds = ['lgrp_socials1', 'lgrp_missing']; });
+    expect((await u.tool('copy_from_phone', { schedule: 'Work' })).isError).toBe(true);
+    expect(await u.groups()).toHaveLength(0);
+  });
+
+  it('parallel copies of the same phone group make one server group', async () => {
+    const t = await snap(() => {});
+    await Promise.all([t.tool('copy_from_phone', { group: 'Socials' }), t.tool('copy_from_phone', { schedule: 'Work' })]);
+    expect((await t.groups()).filter((g: any) => g.copiedFrom === 'lgrp_socials1')).toHaveLength(1);
+  });
+
+  it('copying the same schedule again reuses the earlier copy', async () => {
+    const t = await snap(() => {});
+    await t.tool('copy_from_phone', { schedule: 'Work' });
+    const again = await t.tool('copy_from_phone', { schedule: 'Work' });
+    expect(again.isError).toBe(false);
+    expect(again.text).toMatch(/already copied as server schedule Work id=rule_/);
+    expect((await t.h.req('GET', '/v1/rules', t.token)).json.rules).toHaveLength(1);
+  });
+
+  it('a name clash with a server group gets a "(phone)" name; status marks copies', async () => {
+    const t = await snap(() => {});
+    await t.tool('create_group', { name: 'socials' });
+    const r = await t.tool('copy_from_phone', { group: 'Socials' });
+    expect(r.text).toMatch(/to server group Socials \(phone\) id=/);
+    expect((await t.tool('status')).text).toMatch(/  Socials \(phone\) \(copy of phone group Socials; sites: instagram.com\) id=grp_/);
+  });
+
+  it('says which websites could not be copied', async () => {
+    const t = await snap((s) => { s.groups[0].webDomains = ['Instagram.com', 'not a domain']; });
+    const r = await t.tool('copy_from_phone', { group: 'Socials' });
+    expect(r.text).toContain('Websites not copied (not a valid domain): not a domain.');
+    expect((await t.groups())[0].webDomains).toEqual(['instagram.com']);
   });
 });
 

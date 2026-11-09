@@ -39,6 +39,12 @@ export function policyRoutes(ctx: Ctx) {
     app.post('/groups', async (req, reply) => {
       const a = req.admin!.id;
       const b = parse(GroupInputSchema, req.body);
+      // One server copy per phone group: a repeat (e.g. parallel agent calls) gets the existing copy back.
+      if (b.copiedFrom) {
+        const ex = db.prepare('SELECT * FROM groups WHERE admin_id = ? AND copied_from = ? ORDER BY created_at, id LIMIT 1').get(a, b.copiedFrom) as
+          | Parameters<typeof groupOut>[0] | undefined;
+        if (ex) return reply.code(200).send(groupJson(ex));
+      }
       const id = newId('grp');
       const now = iso(ctx.now());
       db.transaction(() => {

@@ -94,6 +94,10 @@ describe('BlockGroup.copiedFrom', () => {
     const b = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json;
     expect(b.groups.find((x: any) => x.id === g.json.id).copiedFrom).toBe('lgrp_socials1');
     expect(b.groups.find((x: any) => x.id === plain.id).copiedFrom).toBeUndefined();
+    // One server group per phone group, enforced in REST too: a second POST returns the first copy.
+    const dup = await h.req('POST', '/v1/groups', token, { name: 'Again', copiedFrom: 'lgrp_socials1' });
+    expect(dup.status).toBe(200);
+    expect(dup.json.id).toBe(g.json.id);
     expect(validateBundle(b)).toBeNull();
   });
 });
