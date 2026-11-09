@@ -80,7 +80,7 @@ npm run cli -- apikey grokbot   # prints the key + the exact `claude mcp add` li
 
 Tools: `status` (call first), `block` (session now / one-off time block), `allow`, `end`,
 `create_group`, `update_group`, `delete_group`, `add_schedule`, `remove_schedule`, `set_mode`,
-`update_settings`, `pairing_code`. Times are `HH:mm`, minutes, or ISO 8601, in the phone's time zone.
+`update_settings`, `pairing_code`, `unlock_requests`, `approve_unlock`, `deny_unlock`. Times are `HH:mm`, minutes, or ISO 8601, in the phone's time zone.
 
 ## 4. Pair the phone
 
