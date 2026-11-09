@@ -39,7 +39,11 @@ launch, and in the push NSE (which syncs from a background launch), it can read 
 **Fix:** acks use `AuthorizationManager.reportableStatusValue()`: on `.notDetermined` with a
 definite status previously recorded by the app, extensions report the recorded status; the app
 re-reads for up to 3 s, then reports what it sees (a lasting revocation still reaches the server).
-Open: what a real revocation reads as (`.denied` vs `.notDetermined`) — spike S1.
+Answered 2026-11-09 04:16 PT: a **real revocation reads `.notDetermined`** (user turned Tether's Screen Time
+access off; the 0.2.0 app, background-launched after an update, acked `notDetermined` and the server correctly
+showed `revoked`). So `.notDetermined` must NOT be masked in the app: the extension-only fallback stays, and the
+app's 3 s re-read is the only smoothing. (A broader "background launches report the recorded status" change
+was drafted and dropped for this reason: it would hide a real revocation until the app is opened.)
 
 ## S1–S6
 
