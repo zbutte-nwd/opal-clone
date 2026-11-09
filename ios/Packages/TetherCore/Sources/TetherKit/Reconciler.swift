@@ -51,7 +51,13 @@ public final class Reconciler: @unchecked Sendable {
         let pruned = state.pruned(now: now)
         let input = pruned.engineInput
         let tz = PolicyEngine.effectiveTimeZone(input, deviceTimeZone: .current)
-        let selections = SelectionStore(directory: directory).all()
+        let selectionStore = SelectionStore(directory: directory)
+        if let groups = pruned.bundle?.groups {
+            let plans = CopyPlanner.copies(bundleGroups: groups, localGroupIds: Set(pruned.localGroups.map(\.id)),
+                                           applied: selectionStore.appliedCopies())
+            if !plans.isEmpty { selectionStore.applyCopies(plans) }
+        }
+        let selections = selectionStore.all()
         let shield = ShieldApplier()
         let tamper = TamperLock()
         let scheduler = ActivityScheduler(directory: directory)
