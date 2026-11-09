@@ -42,6 +42,14 @@ Every policy change sends an `alert` push (`mutable-content: 1`, for the Notific
 `background` push (`content-available: 1`, priority 5), both with `apns-collapse-id: policy`, debounced 500 ms per
 device, with the bundle inlined when < 3000 bytes. HTTP 410 / `BadDeviceToken` clears the stored token.
 
+## MCP endpoint (agents)
+
+`POST /mcp` — Model Context Protocol, Streamable HTTP, stateless, JSON responses; `Authorization: Bearer tk_live_…`.
+Tools (`src/mcp.ts`): `status`, `block`, `allow`, `end`, `create_group`, `update_group`, `delete_group`,
+`add_schedule`, `remove_schedule`, `set_mode`, `update_settings`, `pairing_code`. Each calls the REST routes
+in-process (`app.inject`), so behavior, audit and pushes match the API exactly. Workstation setup
+(`npm run setup`, `npm run cli -- pair|apikey|info`, Windows task, `tailscale serve`): `../docs/WORKSTATION.md`.
+
 ## Curl examples
 
 ```bash

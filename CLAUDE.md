@@ -10,6 +10,9 @@ usage, focus sessions, and **remotely from a server**; protection gated by the
 3. `docs/BUILD_PLAN.md` — workstreams, ownership, Mac phases, spikes. Update status there.
 4. `docs/MAC_HANDOFF.md` — if you are on a Mac, start here.
 
+**On the workstation PC that hosts the server?** Read only `docs/WORKSTATION.md` — scope there is
+`server/` + MCP connections; leave `ios/`, `admin/`, `contracts/` alone.
+
 ## Layout
 ```
 contracts/            JSON schemas, golden engine vectors, fixtures, API contract (source of truth)

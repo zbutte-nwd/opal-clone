@@ -13,6 +13,7 @@ import { authRoutes } from './routes/auth.js';
 import { adminRoutes } from './routes/admin.js';
 import { adminDeviceRoutes, deviceRoutes } from './routes/devices.js';
 import { policyRoutes } from './routes/policy.js';
+import { mcpRoutes } from './mcp.js';
 
 export interface RouteInfo { method: string; url: string }
 export type TetherApp = FastifyInstance & { ctx: Ctx; routeList: RouteInfo[]; mockPush: MockPushTransport | null };
@@ -91,6 +92,7 @@ export async function buildApp(opts: BuildOptions = {}): Promise<TetherApp> {
     },
     { prefix: '/v1' },
   );
+  await app.register(mcpRoutes(ctx));
 
   if (config.adminDist) {
     await app.register(fastifyStatic, { root: config.adminDist, wildcard: false });

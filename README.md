@@ -22,6 +22,7 @@ An iOS focus / screen-time app in the spirit of Opal:
 | [Architecture](docs/ARCHITECTURE.md) | Reconcile model, data model, blocking semantics, sync protocol, module APIs |
 | [Build plan](docs/BUILD_PLAN.md) | Agent workstreams, status, Mac phases, spikes |
 | [Mac handoff](docs/MAC_HANDOFF.md) | Start here on a Mac |
+| [Workstation server](docs/WORKSTATION.md) | Always-on server + MCP for agents on a Tailscale PC (server only) |
 | [Device test plan](docs/TEST_PLAN_DEVICE.md) | On-device test matrix |
 | [API contract](contracts/api.md) | REST API |
 
@@ -34,6 +35,13 @@ server/      Node 22 + TypeScript + Fastify + SQLite; APNs push
 admin/       React + Vite dashboard
 scripts/     bootstrap-mac.sh, test-linux.sh, dev helpers
 ```
+
+## Control it from Claude (MCP)
+
+The server exposes an MCP endpoint (`/mcp`, Streamable HTTP, API-key bearer) so an agent can run
+"block social for 45 minutes", "games 15:00–17:00", "end it", create groups or change settings, and
+the phone gets the change by push. Host it on an always-on PC over Tailscale: see
+[`docs/WORKSTATION.md`](docs/WORKSTATION.md) (`cd server && npm ci && npm run setup`).
 
 ## Quick start
 
