@@ -400,6 +400,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 60 }
         colorHex: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
         webDomains: { type: array, maxItems: 50, items: { type: string, pattern: '^[a-z0-9.-]+\.[a-z]{2,}$' } }
+        copiedFrom: { type: [string, 'null'], pattern: '^lgrp_[A-Za-z0-9_]+$', description: 'Server copy of a phone-made group; the phone carries its app selection over once' }
     RuleInput:
       type: object
       required: [name, groupIds, action, trigger]

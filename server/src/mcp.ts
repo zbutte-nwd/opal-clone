@@ -23,7 +23,8 @@ const INSTRUCTIONS = `Tether blocks app/website groups on the user's iPhone.
 - status shows two views per device: "server expects" (computed from the policy) and "phone reports" (what the
   phone last acknowledged). Only the phone line, or the user looking at the phone, confirms an effect.
 - status also shows "phone-made": groups, schedules, sessions and pauses the user created on the phone (read-only
-  here; app counts only, never which apps).
+  here; app counts only, never which apps). copy_from_phone makes a server-owned copy you can then manage; the
+  original stays on the phone (remove it there if the user wants only the server copy).
 - Changes reach the phone within seconds via push (or at next app open if push isn't configured).
 - Unlock requests come from the person holding the phone (unlock a group for N minutes, or turn off
   protection). status shows how many are pending; approve or deny one only when the admin tells you to.`;
@@ -60,6 +61,12 @@ const TOOLS = [
       name: { type: 'string' }, groups: groupsArg, days, start: { type: 'string', description: 'HH:mm' }, end: { type: 'string', description: 'HH:mm' },
       strictness: { enum: ['flexible', 'guarded', 'strict'], description: 'flexible (default): user can pause or edit it. guarded: user can pause, but changing or removing it while active needs the partner PIN or admin approval. strict: user cannot pause either.' },
       strict: { type: 'boolean', description: 'Same as strictness: "strict"' } } } },
+  { name: 'copy_from_phone', description: 'Make a server-owned copy of a group or schedule the user created on the phone (see "phone-made" in status). The original stays on the phone; a copied group gets its apps from the phone on its next sync. Copying a schedule also copies its phone-made groups (reusing earlier copies).',
+    inputSchema: { type: 'object', properties: {
+      group: { type: 'string', description: 'Phone-made group name or lgrp_ id' },
+      schedule: { type: 'string', description: 'Phone-made schedule name or id' },
+      name: { type: 'string', description: 'Name for the copy (default: the original name)' },
+      device: { type: 'string', description: 'Device name or id (needed only when several devices are paired)' } } } },
   { name: 'remove_schedule', description: 'Delete a schedule or mode by name or id.',
     inputSchema: { type: 'object', required: ['schedule'], properties: { schedule: { type: 'string' } } } },
   { name: 'set_mode', description: 'Turn a manual mode rule (e.g. "Homework mode") on or off.',
@@ -92,7 +99,7 @@ interface Rule { id: string; name: string; groupIds: string[]; enabled: boolean;
 interface Unlock { id: string; deviceName: string | null; kind: 'groups' | 'disableProtection'; groupIds: string[];
   minutes: number | null; reason: string | null; status: string; createdAt: string; expiresAt: string; note: string | null }
 interface LocalSnapshot {
-  groups: { id: string; name: string; webDomains: string[]; counts: { apps: number; categories: number; webTokens: number } }[];
+  groups: { id: string; name: string; colorHex?: string | null; webDomains: string[]; counts: { apps: number; categories: number; webTokens: number } }[];
   rules: (Rule & { maxPausesPerDay?: number | null })[];
   sessions: { id: string; name?: string | null; groupIds: string[]; startsAt: string; endsAt: string; strict: boolean; endedAt?: string | null }[];
   pauses: { id: string; groupIds: string[]; startsAt: string; endsAt: string; ruleId?: string | null }[];
@@ -244,6 +251,63 @@ async function timedOverride(s: Session, now: Date, a: Args, action: 'block' | '
   return `${action === 'block' ? 'Blocked' : 'Allowed'} ${names} ${when}${until} (${tz}). id=${o.id}`;
 }
 
+type LocalGroup = LocalSnapshot['groups'][number];
+const DOMAIN = /^[a-z0-9.-]+\.[a-z]{2,}$/;
+
+async function copyFromPhone(s: Session, a: Args): Promise<string> {
+  if (!!a.group === !!a.schedule) throw new ToolError('Give exactly one of group or schedule');
+  const devices = (await s.api('GET', '/devices')).devices as { id: string; name: string; local: { snapshot: LocalSnapshot } | null }[];
+  if (!devices.length) throw new ToolError('No device is paired yet (use pairing_code).');
+  if (!a.device && devices.length > 1) throw new ToolError(`Several devices are paired; give device: ${devices.map((d) => d.name).join(', ')}`);
+  const dev = a.device ? findByNameOrId(devices, a.device, 'device') : devices[0]!;
+  const sn = dev.local?.snapshot;
+  if (!sn) throw new ToolError(`${dev.name}: the phone hasn't reported yet (needs app 0.2.0+; open Tether on the phone).`);
+  const known = (list: { name: string }[]) => list.map((x) => x.name).join(', ') || 'none';
+  const find = <T extends { id: string; name: string }>(list: T[], ref: string, what: string): T => {
+    const k = ref.trim().toLowerCase();
+    const hit = list.find((x) => x.id === ref.trim()) ?? list.find((x) => x.name.toLowerCase() === k);
+    if (!hit) throw new ToolError(`Unknown phone-made ${what} "${ref}". Known: ${known(list)}`);
+    return hit;
+  };
+  const serverGroups = await s.groups() as (Group & { copiedFrom?: string })[];
+  // One server copy per phone group: reuse an earlier copy instead of creating a second one.
+  const copyGroup = async (lg: LocalGroup, name?: string): Promise<{ g: Group; reused: boolean }> => {
+    const existing = serverGroups.find((g) => g.copiedFrom === lg.id);
+    if (existing) return { g: existing, reused: true };
+    const g: Group & { copiedFrom?: string } = await s.api('POST', '/groups', {
+      name: name ?? lg.name, webDomains: lg.webDomains.map((d) => d.toLowerCase()).filter((d) => DOMAIN.test(d)),
+      ...(lg.colorHex ? { colorHex: lg.colorHex } : {}),
+      copiedFrom: lg.id,
+    });
+    serverGroups.push(g);
+    return { g, reused: false };
+  };
+  const carry = 'The original stays on the phone; the apps carry over to the copy the next time the phone syncs (no need to pick them again).';
+  if (a.group) {
+    const lg = find(sn.groups, a.group, 'group');
+    const { g, reused } = await copyGroup(lg, a.name);
+    return reused ? `${lg.name} was already copied as server group ${g.name} id=${g.id}; nothing new created.`
+      : `Copied phone group ${lg.name} to server group ${g.name} id=${g.id}. ${carry}`;
+  }
+  const r = find(sn.rules, a.schedule, 'schedule');
+  const ids: string[] = [];
+  const made: string[] = [];
+  for (const gid of r.groupIds) {
+    if (!gid.startsWith('lgrp_')) { ids.push(gid); continue; }
+    const lg = sn.groups.find((g) => g.id === gid);
+    if (!lg) throw new ToolError(`Schedule ${r.name} uses a phone group the phone didn't report (${gid}).`);
+    const { g, reused } = await copyGroup(lg);
+    ids.push(g.id);
+    if (!reused) made.push(g.name);
+  }
+  const rule: Rule = await s.api('POST', '/rules', {
+    name: a.name ?? r.name, groupIds: ids, enabled: r.enabled, action: r.action, trigger: r.trigger, strictness: r.strictness,
+    priority: (r as { priority?: number }).priority ?? 0, maxPausesPerDay: r.maxPausesPerDay ?? null,
+  });
+  return `Copied phone schedule ${r.name} to server schedule ${rule.name} id=${rule.id}`
+    + `${made.length ? ` (new server groups: ${made.join(', ')})` : ''}. ${carry}`;
+}
+
 function unlockWhat(r: Unlock, gname: (id: string) => string, minutes = r.minutes): string {
   return r.kind === 'disableProtection' ? 'turn off protection'
     : `unlock ${r.groupIds.map(gname).join(', ') || '(deleted groups)'}${minutes ? ` for ${minutes} min` : ''}`;
@@ -391,6 +455,7 @@ async function callTool(s: Session, now: Date, name: string, a: Args): Promise<s
       });
       return `Added schedule ${r.name} id=${r.id}`;
     }
+    case 'copy_from_phone': return copyFromPhone(s, a);
     case 'remove_schedule': {
       const r = findByNameOrId(await s.rules(), a.schedule, 'schedule');
       await s.api('DELETE', `/rules/${r.id}`);

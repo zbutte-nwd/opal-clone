@@ -157,6 +157,12 @@ CREATE TABLE device_local (
   received_at TEXT NOT NULL
 );`,
   },
+  {
+    version: 4,
+    name: 'group_copied_from',
+    // Server copy of a phone-made group (lgrp_…): the phone carries that group's app selection over once.
+    sql: `ALTER TABLE groups ADD COLUMN copied_from TEXT;`,
+  },
 ];
 
 export function migrate(db: DB): void {

@@ -42,8 +42,8 @@ export function policyRoutes(ctx: Ctx) {
       const id = newId('grp');
       const now = iso(ctx.now());
       db.transaction(() => {
-        db.prepare('INSERT INTO groups (id, admin_id, name, color_hex, web_domains, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
-          .run(id, a, b.name, b.colorHex ?? null, JSON.stringify(b.webDomains), now, now);
+        db.prepare('INSERT INTO groups (id, admin_id, name, color_hex, web_domains, copied_from, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
+          .run(id, a, b.name, b.colorHex ?? null, JSON.stringify(b.webDomains), b.copiedFrom ?? null, now, now);
         audit(ctx, a, actor(req), 'group.create', id, { name: b.name });
         bumpPolicy(ctx, a);
       })();
@@ -53,11 +53,11 @@ export function policyRoutes(ctx: Ctx) {
     app.patch<{ Params: { id: string } }>('/groups/:id', async (req) => {
       const a = req.admin!.id;
       const cur = getGroup(a, req.params.id);
-      const existing: GroupInput = { name: cur.name, colorHex: cur.color_hex, webDomains: parseJson<string[]>(cur.web_domains, []) };
+      const existing: GroupInput = { name: cur.name, colorHex: cur.color_hex, webDomains: parseJson<string[]>(cur.web_domains, []), copiedFrom: cur.copied_from };
       const b = parse(GroupInputSchema, { ...existing, ...obj(req.body) });
       db.transaction(() => {
-        db.prepare('UPDATE groups SET name = ?, color_hex = ?, web_domains = ?, updated_at = ? WHERE id = ? AND admin_id = ?')
-          .run(b.name, b.colorHex ?? null, JSON.stringify(b.webDomains), iso(ctx.now()), cur.id, a);
+        db.prepare('UPDATE groups SET name = ?, color_hex = ?, web_domains = ?, copied_from = ?, updated_at = ? WHERE id = ? AND admin_id = ?')
+          .run(b.name, b.colorHex ?? null, JSON.stringify(b.webDomains), b.copiedFrom ?? null, iso(ctx.now()), cur.id, a);
         audit(ctx, a, actor(req), 'group.update', cur.id);
         bumpPolicy(ctx, a);
       })();

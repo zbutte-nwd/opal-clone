@@ -4,7 +4,7 @@ import { appVersionAtLeast, GUARDED_MIN_APP_VERSION, iso, parseJson } from '../u
 
 // ---- row <-> API shapes ----
 
-interface GroupRow { id: string; name: string; color_hex: string | null; web_domains: string; created_at: string; updated_at: string }
+interface GroupRow { id: string; name: string; color_hex: string | null; web_domains: string; copied_from?: string | null; created_at: string; updated_at: string }
 interface RuleRow {
   id: string; name: string; group_ids: string; enabled: number; action: string; trigger: string; strictness: string;
   priority: number; max_pauses_per_day: number | null;
@@ -17,7 +17,7 @@ interface SettingsRow { protection_lock: string; allow_local_rules: number; deny
 
 export const groupOut = (r: GroupRow): BlockGroup => ({
   id: r.id, name: r.name, ...(r.color_hex ? { colorHex: r.color_hex } : {}),
-  webDomains: parseJson<string[]>(r.web_domains, []), source: 'server',
+  webDomains: parseJson<string[]>(r.web_domains, []), source: 'server', ...(r.copied_from ? { copiedFrom: r.copied_from } : {}),
 });
 export const ruleOut = (r: RuleRow): Rule => ({
   id: r.id, name: r.name, groupIds: parseJson<string[]>(r.group_ids, []), enabled: !!r.enabled,

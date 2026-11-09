@@ -78,3 +78,22 @@ describe('guarded strictness', () => {
     expect(row.app_version).toBe('0.2.0');
   });
 });
+
+describe('BlockGroup.copiedFrom', () => {
+  it('POST /groups accepts copiedFrom (lgrp_ only); the bundle carries it; PATCH keeps it', async () => {
+    const h = await harness();
+    const { token } = await h.register();
+    expect((await h.req('POST', '/v1/groups', token, { name: 'X', copiedFrom: 'grp_nope' })).status).toBe(422);
+    const g = await h.req('POST', '/v1/groups', token, { name: 'Socials', copiedFrom: 'lgrp_socials1' });
+    expect(g.status).toBe(201);
+    expect(g.json.copiedFrom).toBe('lgrp_socials1');
+    await h.req('PATCH', `/v1/groups/${g.json.id}`, token, { name: 'Socials 2' });
+    const plain = (await h.req('POST', '/v1/groups', token, { name: 'Plain' })).json;
+    expect('copiedFrom' in plain).toBe(false);
+    const dev = await h.pair(token, 'p', '0.2.0');
+    const b = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json;
+    expect(b.groups.find((x: any) => x.id === g.json.id).copiedFrom).toBe('lgrp_socials1');
+    expect(b.groups.find((x: any) => x.id === plain.id).copiedFrom).toBeUndefined();
+    expect(validateBundle(b)).toBeNull();
+  });
+});

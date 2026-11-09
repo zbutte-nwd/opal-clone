@@ -182,6 +182,67 @@ describe('mcp phone-made visibility', () => {
   });
 });
 
+describe('copy_from_phone', () => {
+  async function withSnapshot(snapshot = true) {
+    const t = await setup();
+    if (snapshot) expect((await t.h.req('PUT', '/v1/devices/me/local', t.dev.deviceToken, localFixture())).status).toBe(204);
+    const bundle = async () => (await t.h.req('GET', '/v1/devices/me/policy', t.dev.deviceToken)).json;
+    return { ...t, bundle };
+  }
+
+  it('copies a phone group once (copiedFrom in the bundle); a second copy reuses it', async () => {
+    const { tool, bundle } = await withSnapshot();
+    const r = await tool('copy_from_phone', { group: 'socials' });
+    expect(r.isError).toBe(false);
+    expect(r.text).toMatch(/^Copied phone group Socials to server group Socials id=grp_/);
+    expect(r.text).toContain('The original stays on the phone');
+    const g = (await bundle()).groups;
+    expect(g).toHaveLength(1);
+    expect(g[0]).toMatchObject({ name: 'Socials', copiedFrom: 'lgrp_socials1', webDomains: ['instagram.com'], colorHex: '#FF5A5F' });
+    const again = await tool('copy_from_phone', { group: 'lgrp_socials1', name: 'Other name' });
+    expect(again.text).toMatch(/already copied/);
+    expect((await bundle()).groups).toHaveLength(1);
+  });
+
+  it('copy_from_phone schedule reuses existing copies and keeps server groups', async () => {
+    const { tool, h, token, dev, bundle } = await withSnapshot();
+    const server = (await h.req('POST', '/v1/groups', token, { name: 'News' })).json;
+    await tool('copy_from_phone', { group: 'Socials' });
+    // The phone schedule now covers a phone group (already copied) and a server group.
+    const snap = localFixture();
+    snap.hash = 'b'.repeat(64);
+    snap.rules[0].groupIds = ['lgrp_socials1', server.id];
+    expect((await h.req('PUT', '/v1/devices/me/local', dev.deviceToken, snap)).status).toBe(204);
+    const before = (await bundle()).groups.length;
+    const r = await tool('copy_from_phone', { schedule: 'work' });
+    expect(r.isError).toBe(false);
+    const b = await bundle();
+    expect(b.groups).toHaveLength(before);
+    const copy = b.groups.find((g: any) => g.copiedFrom === 'lgrp_socials1');
+    expect(b.rules).toHaveLength(1);
+    expect(b.rules[0]).toMatchObject({
+      name: 'Work', action: 'block', strictness: 'guarded', // setup() pairs app 1.0 (>= 0.2.0)
+      trigger: { type: 'schedule', windows: [{ days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00' }] }, maxPausesPerDay: 3,
+    });
+    expect(b.rules[0].groupIds).toEqual([copy.id, server.id]);
+  });
+
+  it('copied guarded rule reaches an app 0.1.0 device as flexible; errors are helpful', async () => {
+    const { tool, h, token } = await withSnapshot();
+    const old = await h.pair(token, 'Old phone', '0.1.0');
+    expect((await tool('copy_from_phone', { schedule: 'Work' })).isError).toBe(true); // two devices now: must name one
+    const several = (await tool('copy_from_phone', { schedule: 'Work' })).text;
+    expect(several).toMatch(/^Several devices are paired; give device: /);
+    expect(several).toContain('Zakir iPhone');
+    expect(several).toContain('Old phone');
+    expect((await tool('copy_from_phone', { schedule: 'Work', device: 'Zakir iPhone' })).isError).toBe(false);
+    expect((await h.req('GET', '/v1/devices/me/policy', old.deviceToken)).json.rules[0].strictness).toBe('flexible');
+    expect((await tool('copy_from_phone', { group: 'Nope', device: 'zakir iphone' })).text).toBe('Unknown phone-made group "Nope". Known: Socials');
+    expect((await tool('copy_from_phone', { device: 'Zakir iPhone' })).isError).toBe(true);
+    expect((await tool('copy_from_phone', { group: 'Socials', device: 'Old phone' })).text).toContain("phone hasn't reported yet");
+  });
+});
+
 describe('parseTime', () => {
   const after = new Date('2026-11-09T17:00:00Z'); // 09:00 in Los Angeles
   const tz = 'America/Los_Angeles';

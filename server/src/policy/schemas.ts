@@ -31,6 +31,7 @@ export const GroupInputSchema = z.object({
     .array(z.string().regex(DOMAIN, 'must be a lowercase domain like example.com'))
     .max(50, 'at most 50 domains')
     .default([]),
+  copiedFrom: z.string().regex(/^lgrp_[A-Za-z0-9_]+$/, 'must be a phone-made group id (lgrp_…)').nullish(),
 });
 export type GroupInput = z.infer<typeof GroupInputSchema>;
 
