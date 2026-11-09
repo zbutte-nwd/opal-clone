@@ -65,3 +65,15 @@ const validate = ajv.compile(schema);
 export function validateBundle(b: unknown): string | null {
   return validate(b) ? null : ajv.errorsText(validate.errors);
 }
+
+// device-local.schema.json $refs the engine-input and policy-bundle schemas by $id.
+const ajvLocal = new Ajv({ strict: false, allErrors: true });
+((addFormats as any).default ?? addFormats)(ajvLocal);
+const contract = (f: string) => JSON.parse(readFileSync(new URL(`../../contracts/${f}`, import.meta.url), 'utf8'));
+ajvLocal.addSchema(contract('engine-input.schema.json'));
+ajvLocal.addSchema(contract('policy-bundle.schema.json'));
+const validateLocalFn = ajvLocal.compile(contract('device-local.schema.json'));
+export function validateLocal(s: unknown): string | null {
+  return validateLocalFn(s) ? null : ajvLocal.errorsText(validateLocalFn.errors);
+}
+export const localFixture = (): any => contract('fixtures/device-local.example.json');

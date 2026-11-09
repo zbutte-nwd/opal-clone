@@ -1,5 +1,6 @@
 import type { Ctx, DeviceRow } from './context.js';
 import { evaluate } from './engine/index.js';
+import type { LocalSnapshot } from './policy/schemas.js';
 import { buildBundle, audit, pruneOverrides } from './policy/service.js';
 import { iso, parseJson } from './util.js';
 
@@ -29,6 +30,8 @@ export function deviceSummary(ctx: Ctx, d: DeviceRow) {
     return { groupId: g.id, blocked: s.blocked, reason: s.reason, strict: s.strict };
   });
   const reported = parseJson<string[]>(d.blocked_group_ids, []);
+  const loc = ctx.db.prepare('SELECT snapshot, received_at FROM device_local WHERE device_id = ?').get(d.id) as
+    | { snapshot: string; received_at: string } | undefined;
   return {
     id: d.id,
     name: d.name,
@@ -46,6 +49,8 @@ export function deviceSummary(ctx: Ctx, d: DeviceRow) {
     hasPushToken: !!d.push_token,
     protectionEnabled: d.protection_enabled == null ? null : !!d.protection_enabled,
     pairedAt: d.created_at,
+    /** The phone's last read-only snapshot of phone-made state (display only), or null if it never sent one. */
+    local: loc ? { receivedAt: loc.received_at, snapshot: parseJson<LocalSnapshot | null>(loc.snapshot, null) } : null,
   };
 }
 

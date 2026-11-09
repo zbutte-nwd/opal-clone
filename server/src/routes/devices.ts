@@ -6,6 +6,7 @@ import type { Ctx, DeviceRow } from '../context.js';
 import { deviceDetail, deviceSummary } from '../devices.js';
 import { forbidden, invalid, notFound, parse } from '../errors.js';
 import { assertGroupsExist } from '../policy/overrides.js';
+import { LocalSnapshotSchema } from '../policy/schemas.js';
 import { audit, buildBundle } from '../policy/service.js';
 import { addMinutes, iso, newId, parseJson, randomToken, sha256Hex } from '../util.js';
 
@@ -197,6 +198,20 @@ export function deviceRoutes(ctx: Ctx) {
         db.prepare(
           `UPDATE devices SET applied_version = MAX(applied_version, ?), applied_at = ?, blocked_group_ids = ?, authorization_status = ?, time_zone = COALESCE(?, time_zone) WHERE id = ?`,
         ).run(Math.min(b.version, dev.latest_version), iso(new Date(b.appliedAt)), JSON.stringify(b.blockedGroupIds), b.authorizationStatus, b.timeZone ?? null, dev.id);
+        return reply.code(204).send();
+      });
+
+      // Read-only snapshot of phone-made state; replaced whole, never merged. Same hash = no write.
+      d.put('/devices/me/local', { bodyLimit: 256 * 1024 }, async (req, reply) => {
+        const b = parse(LocalSnapshotSchema, req.body);
+        const dev = req.device!;
+        const cur = db.prepare('SELECT hash FROM device_local WHERE device_id = ?').get(dev.id) as { hash: string } | undefined;
+        if (cur?.hash !== b.hash) {
+          db.prepare(
+            `INSERT INTO device_local (device_id, hash, snapshot, received_at) VALUES (?,?,?,?)
+             ON CONFLICT(device_id) DO UPDATE SET hash = excluded.hash, snapshot = excluded.snapshot, received_at = excluded.received_at`,
+          ).run(dev.id, b.hash, JSON.stringify(b), iso(ctx.now()));
+        }
         return reply.code(204).send();
       });
 
