@@ -7,6 +7,30 @@ compiler** and audited by reading (`docs/reviews/W8-apple-api-audit.md`). Your j
 make it build, run it on a real iPhone, prove the risky assumptions (spikes), and get
 to TestFlight.
 
+## Where the Mac left off (2026-11-09) — read this first when resuming
+
+Done: M0 (paid team `W6Y8QLHYZ3`, all 6 targets signed with Family Controls + Push), M2 (everything compiles on
+Xcode 26.5 / iOS 26.5 SDK), app **0.2.0** on the user's iPhone 17 Pro (iOS 26.6), paired to the workstation server
+(`docs/WORKSTATION.md`), APNs live (sandbox). Guarded schedules + phone visibility/copy shipped (#2). Device results:
+`docs/TEST_PLAN_DEVICE.md` (Runs 1–2); spike notes and findings: `docs/reviews/M1-spikes.md`.
+
+To resume on a Mac:
+1. `git pull` on `claude/beautiful-wozniak-y76g65`, then `./scripts/bootstrap-mac.sh` (or `cd ios && xcodegen generate`).
+2. Recreate the gitignored `ios/Config/Local.xcconfig`: `DEVELOPMENT_TEAM = W6Y8QLHYZ3`,
+   `BUNDLE_ID_PREFIX = com.newwestsite`,
+   `TETHER_SERVER_URL = https:/$()/zakir-workstation.tail9389f4.ts.net:47443` (port required).
+3. Install: `xcodebuild -scheme Tether -destination 'id=<device>' -allowProvisioningUpdates build`, then
+   `xcrun devicectl device install app …`. Wireless install needs the phone on the same Wi-Fi as the Mac, or a cable.
+   Updating over the existing app keeps pairing, the PIN and state.
+4. MCP from the Mac: `claude mcp add --transport http --scope user tether <url>/mcp --header "Authorization: Bearer <key>"`
+   (key from `npm run cli -- apikey <name>` on the workstation; never commit keys).
+5. Agents talk through commits on this branch (recipient in the commit message). The workstation agent owns `server/`.
+
+Open next steps: S1 (app deletion, iCloud sign-out) while the user still knows the Screen Time passcode, because
+someone else will hold it later; S3–S6; the M3 cases not yet run (apps in server groups, usage limits, schedules C*,
+the partnerPIN guard prompt); M4: request the Family Controls **Distribution** entitlement for all 6 bundle IDs
+(weeks of lead time); bump `MARKETING_VERSION` with every app release (the server gates features on it).
+
 ## 0. Before you start (needs the human)
 
 Ask the human for / to do these — you cannot do them yourself:
@@ -100,7 +124,7 @@ GitHub issues or fix directly.
 
 ## State at handoff
 
-See the status column in `docs/BUILD_PLAN.md`; the commit log has detail. Summary:
+As of the original Linux handoff (superseded by the section at the top and `docs/BUILD_PLAN.md`):
 
 | Area | Verified on Linux? |
 |---|---|

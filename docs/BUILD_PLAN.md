@@ -10,16 +10,17 @@ server together.
 
 | Phase | Where | What | Status |
 |---|---|---|---|
-| P0 | cloud (Linux) | Docs, contract, JSON schemas, 61 golden engine vectors + Python reference engine, Swift models, package skeleton | ✅ done |
+| P0 | cloud (Linux) | Docs, contract, JSON schemas, 61 (now 63) golden engine vectors + Python reference engine, Swift models, package skeleton | ✅ done |
 | P1 | cloud (Linux) | Workstreams W1–W7 in parallel (below) | see table |
 | P2 | cloud (Linux) | W8: audit all Apple-framework Swift (can't be compiled on Linux) against real SDK signatures | ✅ |
 | P3 | cloud (Linux) | Integration: cross-stack e2e smoke test (`make e2e`), device time zone on ack, Linux iOS type-check harness (`make typecheck-ios-linux`), placeholder app icon | ✅ |
 | M0 | **Mac** | Toolchain + signing setup (`docs/MAC_HANDOFF.md`) | ✅ Xcode 26.5, paid team W6Y8QLHYZ3; all 6 targets signed with Family Controls (Development) + Push, installed on iPhone 17 Pro. Distribution entitlement not yet requested |
-| M1 | **Mac + iPhone** | Feasibility spikes S1–S6 | ⬜ |
-| M2 | **Mac** | Generate Xcode project, compile all targets, fix errors, unit tests on iOS sim | 🟡 all 6 targets compile with 0 warnings (iOS 26.5 SDK; 2 fixes: missing import, `.approvedWithDataAccess`); launches in Simulator with stub; screen walkthrough pending |
-| M3 | **Mac + iPhone** | On-device test matrix (`docs/TEST_PLAN_DEVICE.md`) | ⬜ |
+| M1 | **Mac + iPhone** | Feasibility spikes S1–S6 | 🟡 S1 partial: revoking access asks for the Screen Time passcode, server shows `revoked`; app-delete + iCloud sign-out not recorded. S2 (NSE applies policy, app closed) seen working (~1 s). S3–S6 not run. Findings F1 (DeviceActivity deadlock) + F2 (revoked readings) fixed. See `docs/reviews/M1-spikes.md` |
+| M2 | **Mac** | Generate Xcode project, compile all targets, fix errors, unit tests on iOS sim | ✅ all 6 targets compile (iOS 26.5 SDK); app 0.2.0 runs on the iPhone. Known warning: ShieldAction switch lacks iOS 26 submenu cases (handled by `@unknown default`) |
+| M3 | **Mac + iPhone** | On-device test matrix (`docs/TEST_PLAN_DEVICE.md`) | 🟡 Run 1 (remote control: G1/G4/G5/G6/H3/I1) + Run 2 (guarded + phone visibility/copy) PASS. Not tested: apps in server groups end-to-end, usage limits, schedules C*, partnerPIN guard prompt |
 | M4 | **Mac** | Family Controls distribution entitlement, TestFlight, App Store review notes | ⬜ |
-| S1 | anywhere | Deploy server (Fly.io/Render/VM) + APNs key | ⬜ |
+| S1 | anywhere | Deploy server (Fly.io/Render/VM) + APNs key | ✅ Windows workstation via `tailscale serve` (`docs/WORKSTATION.md`), APNs sandbox key live, MCP for agents |
+| F1 | Mac + workstation | Guarded schedules + phone visibility/copy (`docs/superpowers/plans/2026-11-09-…`) | ✅ merged #2 (110de3e); app 0.2.0, server deployed |
 
 ## Workstreams (P1/P2)
 
@@ -32,8 +33,8 @@ Each workstream **owns** its directories; don't edit outside them (except append
 | W2 | **API client** — `APIClient`, `SyncEngine`, `PushPayload`, backoff | `Sources/TetherAPI/**`, `Tests/TetherAPITests/**` | `swift test` with URLProtocol stubs | ✅ |
 | W3 | **Server** — Fastify API per `contracts/api.md`, SQLite, APNs, TS engine port, OpenAPI | `server/**` | `npm test` (incl. engine vectors), `npm run typecheck` | ✅ |
 | W4 | **Admin dashboard** — React + Vite | `admin/**` | `npm run build`, `npm test` | ✅ |
-| W5 | **iOS platform** — `TetherKit` (Reconciler, ShieldApplier, ActivityScheduler, AuthorizationManager, SelectionStore, ProtectionController, Keychain, AppGroup) + all 5 extensions | `Sources/TetherKit/**`, `ios/Extensions/**` | Linux build still passes (all Apple code behind `#if canImport(ManagedSettings)`); W8 audit | 🟡 written, needs Mac compile |
-| W6 | **iOS app UI** — SwiftUI app, onboarding, groups, rules, sessions, pause, pairing, settings | `ios/App/**` | W8 audit; compiles on Mac in M2 | 🟡 written, needs Mac compile |
+| W5 | **iOS platform** — `TetherKit` (Reconciler, ShieldApplier, ActivityScheduler, AuthorizationManager, SelectionStore, ProtectionController, Keychain, AppGroup) + all 5 extensions | `Sources/TetherKit/**`, `ios/Extensions/**` | Linux build still passes (all Apple code behind `#if canImport(ManagedSettings)`); W8 audit | ✅ compiled + running on device (M2) |
+| W6 | **iOS app UI** — SwiftUI app, onboarding, groups, rules, sessions, pause, pairing, settings | `ios/App/**` | W8 audit; compiles on Mac in M2 | ✅ compiled + running on device (M2) |
 | W7 | **Project & infra** — XcodeGen `project.yml`, Info.plists, entitlements, xcconfig, privacy manifest, CI, scripts, Makefile | `ios/project.yml`, `ios/Config/**`, `.github/**`, `scripts/**`, `Makefile` | `python3 -c yaml.safe_load`, `actionlint` if available, scripts `bash -n` | ✅ |
 | W8 | **Apple API audit** (after W5/W6) | review only; fixes in W5/W6 dirs | written report `docs/reviews/W8-apple-api-audit.md` | ✅ 31 issues (19 fixed, 12 left for Mac); TetherKit + extensions + app platform layer type-check against SDK-shaped shims; SwiftUI views hand-reviewed |
 
