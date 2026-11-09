@@ -68,6 +68,9 @@ struct DisableProtectionView: View {
     @State private var status: UnlockStatus?
     @State private var pollTask: Task<Void, Never>?
     @State private var busy = false
+    /// Survives closing this screen ("You can close this screen and come back"), so coming back
+    /// resumes the pending request instead of offering to send a duplicate.
+    @AppStorage("tether.pendingDisableRequestId") private var pendingRequestId = ""
 
     var body: some View {
         ScrollView {
@@ -82,6 +85,12 @@ struct DisableProtectionView: View {
             .padding()
         }
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        .onAppear {
+            if model.protectionLock == .remoteApproval, requestId == nil, !pendingRequestId.isEmpty {
+                requestId = pendingRequestId; status = .pending
+                poll(pendingRequestId)
+            }
+        }
         .onDisappear { pollTask?.cancel() }
     }
 
@@ -129,7 +138,7 @@ struct DisableProtectionView: View {
             let id = await model.requestUnlock(kind: .disableProtection, groupIds: [], minutes: nil, reason: "Disable protection requested on device")
             busy = false
             guard let id else { return }
-            requestId = id; status = .pending
+            requestId = id; status = .pending; pendingRequestId = id
             poll(id)
         }
     }
@@ -143,6 +152,7 @@ struct DisableProtectionView: View {
                 attempts += 1
                 guard let s = try? await model.platform.unlockRequestStatus(id: id) else { continue }
                 status = s
+                if s != .pending { pendingRequestId = "" }
                 if s == .approved {
                     if let e = model.completeRemoteDisable(requestId: id) { error = e }
                     return

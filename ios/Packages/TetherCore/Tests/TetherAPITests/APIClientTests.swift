@@ -175,3 +175,11 @@ final class APIClientTests: XCTestCase {
         XCTAssertTrue(StubURLProtocol.recorded.isEmpty)
     }
 }
+
+final class APIErrorDescriptionTests: XCTestCase {
+    func testReadableDescriptions() {
+        XCTAssertEqual(APIError.unauthorized.localizedDescription, "The server refused the request (401).")
+        XCTAssertEqual(APIError.server(status: 503, code: nil, message: "down").localizedDescription, "Server error 503: down")
+        XCTAssertEqual(APIError.validation("Bad code").localizedDescription, "Bad code")
+    }
+}

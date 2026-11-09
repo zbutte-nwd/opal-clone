@@ -199,3 +199,25 @@ Device: ______ iOS: ____ Build: ____ (git sha) Server: ____ Tester: ____ Date: _
 | K2 | | | |
 | K3 | | | |
 | K4 | | | |
+
+## Results
+
+### Run 1 — 2026-11-09 (partial: server/remote path)
+
+```
+Device: iPhone 17 Pro  iOS: 26.6 (23G71)  Build: 4a68044..80bf0b7 (Debug, Family Controls Development)
+Server: workstation (Windows, Node 24) via tailscale serve :47443, APNs sandbox  Tester: Zakir + agents  Date: 2026-11-09
+```
+
+| Case | Result | Measured value | Notes / bug link |
+|---|---|---|---|
+| G1 | PASS (after fix) | | First attempt failed: field left empty → build-default URL pointed at another service (401). Fixed by setting `TETHER_SERVER_URL` in Local.xcconfig; pairing errors now name the URL tried + likely cause. |
+| G4 | PASS (web) | applied in ≤ 2 s | Override on a website-only group (example.com) blocked it in Safari, 00:58–01:02 PT, ended on time. Also blocked in Chrome for iOS. Apps in server groups not yet tested (none picked). |
+| G5 | PASS | immediate | Ending a block early via MCP `end` cleared it on the phone immediately. |
+| G6 | PASS (push) | ~1–2 s | Changes applied within seconds; device acked latest version. Cold background launch by push (Tether + NSE not running) ×3: applied in ~1 s, ack status `approved` each time (verifies M1 F2 fix). |
+| H3 | PASS | | remoteApproval: phone request → server approve → `protectionDisabled` (method remoteApproval). Phone sent two identical requests ~90 s apart (screen reopened while waiting) — fixed: pending request id now persists and polling resumes. |
+| I1 | PASS | | partnerPIN disable and re-enable. |
+| — | NOT TESTED | | Apps chosen in a server-created group; usage limits (E); schedules (C); S1 passcode gate. |
+
+Bugs found and fixed this run: false `revoked` on server after background launch (M1 F2); generic pairing
+error text; duplicate disable-protection requests.

@@ -18,3 +18,17 @@ public enum APIError: Error, Sendable {
         }
     }
 }
+
+extension APIError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .unauthorized: return "The server refused the request (401)."
+        case .notFound: return "Not found (404)."
+        case .validation(let m): return m
+        case .rateLimited: return "Too many attempts. Wait a minute and try again."
+        case .server(let status, let code, let message): return "Server error \(status)" + ((message ?? code).map { ": \($0)" } ?? ".")
+        case .transport(let e): return "Couldn't reach the server: \(e.localizedDescription)"
+        case .decoding: return "The server's reply wasn't understood (is this a Tether server?)."
+        }
+    }
+}

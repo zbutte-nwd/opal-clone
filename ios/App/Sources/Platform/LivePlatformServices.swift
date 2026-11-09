@@ -117,7 +117,19 @@ final class LivePlatformServices: PlatformServices {
         guard let normalized = PairingLink.normalizeCode(code) else {
             throw PlatformError.invalidInput("Pairing codes have 8 letters or numbers, like K7Q2-M9XD.")
         }
-        _ = try await sync.enroll(pairingCode: normalized, server: server, deviceInfo: deviceInfo())
+        do {
+            _ = try await sync.enroll(pairingCode: normalized, server: server, deviceInfo: deviceInfo())
+        } catch let e as APIError {
+            // Say which address was tried: a wrong host/port is the usual cause and is otherwise invisible.
+            let hint: String
+            switch e {
+            case .notFound: hint = "The code is wrong or expired (codes last 10 minutes), or this isn't the Tether server."
+            case .unauthorized, .decoding: hint = "This address doesn't look like the Tether server. Check the host and port."
+            case .transport: hint = "Check the address and that this phone is on the same Tailscale network."
+            default: hint = ""
+            }
+            throw PlatformError.message("Pairing with \(server.absoluteString) failed. \(e.localizedDescription) \(hint)")
+        }
     }
 
     func unpair() async {
