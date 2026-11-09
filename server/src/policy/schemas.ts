@@ -40,9 +40,11 @@ export const RuleInputSchema = z.object({
   enabled: z.boolean().default(true),
   action: z.enum(['block', 'allow']),
   trigger: TriggerSchema,
-  strictness: z.enum(['flexible', 'strict']).default('flexible'),
+  strictness: z.enum(['flexible', 'guarded', 'strict']).default('flexible'),
   priority: z.number().int().min(-1000).max(1000).default(0),
   maxPausesPerDay: z.number().int().min(0).nullish(),
+}).refine((r) => r.strictness !== 'guarded' || r.action === 'block', {
+  message: 'guarded is only valid for block rules', path: ['strictness'],
 });
 export type RuleInput = z.infer<typeof RuleInputSchema>;
 

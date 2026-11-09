@@ -104,6 +104,16 @@ describe('mcp tools', () => {
     expect((await tool('status')).text).toContain('Work: block Social | mon,tue,wed,thu,fri 09:00-17:30');
     expect((await tool('remove_schedule', { schedule: 'work' })).text).toBe('Removed Work.');
 
+    // strictness: guarded (pausable, locked on the phone while active) and strict (also via the strict: true alias)
+    await tool('add_schedule', { name: 'Day', groups: ['Social'], days: ['weekdays'], start: '9:00', end: '17:00', strictness: 'guarded' });
+    await tool('add_schedule', { name: 'Night', groups: ['Social'], days: ['daily'], start: '22:00', end: '06:00', strict: true });
+    const st = (await tool('status')).text;
+    expect(st).toMatch(/Day: block Social \| mon,tue,wed,thu,fri 09:00-17:00 \| guarded id=/);
+    expect(st).toMatch(/Night: block Social \| .* 22:00-06:00 \| strict id=/);
+    expect((await tool('add_schedule', { name: 'X', groups: ['Social'], days: ['mon'], start: '1:00', end: '2:00', strictness: 'nope' })).isError).toBe(true);
+    await tool('remove_schedule', { schedule: 'Day' });
+    await tool('remove_schedule', { schedule: 'Night' });
+
     expect((await tool('update_group', { group: 'Social', websites: ['x.com', 'reddit.com'] })).text).toContain('x.com, reddit.com');
     expect((await tool('update_settings', { allowLocalRules: false })).text).toContain('"allowLocalRules":false');
     const pol2 = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json;

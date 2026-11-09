@@ -25,6 +25,23 @@ export function parseJson<T>(s: string | null | undefined, fallback: T): T {
   }
 }
 
+/** Apps below this version fail to decode `strictness: "guarded"` (closed Swift enum); they get "flexible". */
+export const GUARDED_MIN_APP_VERSION = '0.2.0';
+
+/** Numeric dotted-version compare ("0.10.0" >= "0.2.0"); missing parts count as 0; null/garbage is "older". */
+export function appVersionAtLeast(v: string | null | undefined, min: string): boolean {
+  const parts = (s: string | null | undefined) => (s && /^\d+(\.\d+)*$/.test(s.trim()) ? s.trim().split('.').map(Number) : null);
+  const a = parts(v);
+  const b = parts(min);
+  if (!a || !b) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+
 export function isValidTimeZone(tz: string): boolean {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz });

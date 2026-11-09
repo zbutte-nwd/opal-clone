@@ -17,6 +17,8 @@ const INSTRUCTIONS = `Tether blocks app/website groups on the user's iPhone.
 - Times: minutes, or "HH:mm" (24 h, next occurrence), or ISO 8601. Times without an offset are in the
   phone's time zone, which status reports along with the current local time.
 - Blocks from this server are strict on the phone (the user cannot pause them); end them with end.
+- Schedules (add_schedule) are flexible, guarded or strict. Guarded = the user may pause, but cannot switch the
+  schedule off, edit it, or remove apps from its groups while it is active (needs partner PIN or admin approval).
 - Which apps belong to a group is chosen on the phone (Apple privacy rule); websites can be set here.
 - status shows two views per device: "server expects" (computed from the policy) and "phone reports" (what the
   phone last acknowledged). Only the phone line, or the user looking at the phone, confirms an effect.
@@ -54,7 +56,8 @@ const TOOLS = [
   { name: 'add_schedule', description: 'Recurring time block, e.g. weekdays 09:00-17:00. Windows may cross midnight.',
     inputSchema: { type: 'object', required: ['name', 'groups', 'days', 'start', 'end'], properties: {
       name: { type: 'string' }, groups: groupsArg, days, start: { type: 'string', description: 'HH:mm' }, end: { type: 'string', description: 'HH:mm' },
-      strict: { type: 'boolean', description: 'User cannot pause (default false)' } } } },
+      strictness: { enum: ['flexible', 'guarded', 'strict'], description: 'flexible (default): user can pause or edit it. guarded: user can pause, but changing or removing it while active needs the partner PIN or admin approval. strict: user cannot pause either.' },
+      strict: { type: 'boolean', description: 'Same as strictness: "strict"' } } } },
   { name: 'remove_schedule', description: 'Delete a schedule or mode by name or id.',
     inputSchema: { type: 'object', required: ['schedule'], properties: { schedule: { type: 'string' } } } },
   { name: 'set_mode', description: 'Turn a manual mode rule (e.g. "Homework mode") on or off.',
@@ -289,7 +292,7 @@ async function status(s: Session, now: Date): Promise<string> {
     const t = r.trigger;
     const what = t.type === 'schedule' ? t.windows!.map((w) => `${w.days.map((d) => DAY_NAMES[d - 1]).join(',')} ${w.start}-${w.end}`).join('; ')
       : t.type === 'manual' ? `mode, ${t.active ? 'ON' : 'off'}` : `${t.dailyMinutes} min/day limit`;
-    L.push(`  ${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${what}${r.strictness === 'strict' ? ' | strict' : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`);
+    L.push(`  ${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${what}${r.strictness !== 'flexible' ? ` | ${r.strictness}` : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`);
   }
   if (unlocks.requests.length) L.push('', `Pending unlock requests: ${unlocks.requests.length} (see unlock_requests)`);
   L.push('', `Settings: protectionLock=${settings.protectionLock}, allowLocalRules=${settings.allowLocalRules}, denyAppRemoval=${settings.denyAppRemoval}, timeZone=${settings.timeZone ?? 'phone local'}`);
@@ -338,7 +341,7 @@ async function callTool(s: Session, now: Date, name: string, a: Args): Promise<s
       const groups = await s.resolveGroups(a.groups ?? []);
       const r: Rule = await s.api('POST', '/rules', {
         name: a.name, groupIds: groups.map((g) => g.id), enabled: true, action: 'block', priority: 0,
-        strictness: a.strict ? 'strict' : 'flexible',
+        strictness: a.strictness ?? (a.strict ? 'strict' : 'flexible'),
         trigger: { type: 'schedule', windows: [{ days: parseDays(a.days ?? []), start: hhmm(a.start), end: hhmm(a.end) }] },
       });
       return `Added schedule ${r.name} id=${r.id}`;

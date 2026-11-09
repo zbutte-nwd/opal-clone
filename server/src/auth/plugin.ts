@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { Ctx, DeviceRow } from '../context.js';
 import { forbidden, unauthorized } from '../errors.js';
+import { bumpPolicy } from '../policy/service.js';
 import { iso, sha256Hex } from '../util.js';
 import { verifyJwt } from './crypto.js';
 
@@ -58,6 +59,17 @@ export function deviceAuth(ctx: Ctx) {
     const row = ctx.db.prepare('SELECT * FROM devices WHERE token_hash = ?').get(sha256Hex(token)) as DeviceRow | undefined;
     if (!row) throw unauthorized('Invalid device token');
     ctx.db.prepare('UPDATE devices SET last_seen_at = ?, stale_notified_at = NULL WHERE id = ?').run(iso(ctx.now()), row.id);
+    // app_version is sent at enroll only; the app's User-Agent keeps it current after updates. The bundle depends on it
+    // (guarded gate), so a change re-versions this device's policy: its cached ETag would otherwise 304 the new shape.
+    const ua = /^Tether-iOS\/(\d+(?:\.\d+)*)/.exec(req.headers['user-agent'] ?? '');
+    if (ua && ua[1] !== row.app_version) {
+      ctx.db.transaction(() => {
+        ctx.db.prepare('UPDATE devices SET app_version = ? WHERE id = ?').run(ua[1], row.id);
+        bumpPolicy(ctx, row.admin_id, [row.id]);
+      })();
+      req.device = ctx.db.prepare('SELECT * FROM devices WHERE id = ?').get(row.id) as DeviceRow;
+      return;
+    }
     req.device = row;
   };
 }

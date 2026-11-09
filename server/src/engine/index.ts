@@ -9,7 +9,7 @@ export type Trigger =
   | { type: 'manual'; active: boolean };
 export interface Rule {
   id: string; name: string; groupIds: string[]; enabled: boolean; action: 'block' | 'allow';
-  trigger: Trigger; strictness: 'flexible' | 'strict'; priority?: number; maxPausesPerDay?: number | null;
+  trigger: Trigger; strictness: 'flexible' | 'guarded' | 'strict'; priority?: number; maxPausesPerDay?: number | null;
   source?: 'server' | 'local';
 }
 export interface Override {

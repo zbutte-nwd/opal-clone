@@ -1,6 +1,6 @@
 import type { Ctx, DeviceRow } from '../context.js';
 import type { BlockGroup, Override, PolicyBundle, Rule, Settings, Trigger } from '../engine/index.js';
-import { iso, parseJson } from '../util.js';
+import { appVersionAtLeast, GUARDED_MIN_APP_VERSION, iso, parseJson } from '../util.js';
 
 // ---- row <-> API shapes ----
 
@@ -51,12 +51,16 @@ export function settingsOut(ctx: Ctx, adminId: string): Settings & { timeZone: s
 
 // ---- bundle ----
 
-export function buildBundle(ctx: Ctx, device: Pick<DeviceRow, 'id' | 'admin_id' | 'latest_version'>): PolicyBundle {
+export function buildBundle(ctx: Ctx, device: Pick<DeviceRow, 'id' | 'admin_id' | 'latest_version' | 'app_version'>): PolicyBundle {
   const now = ctx.now();
   const nowIso = iso(now);
   const a = device.admin_id;
   const groups = (ctx.db.prepare('SELECT * FROM groups WHERE admin_id = ? ORDER BY created_at, id').all(a) as GroupRow[]).map(groupOut);
-  const rules = (ctx.db.prepare('SELECT * FROM rules WHERE admin_id = ? ORDER BY created_at, id').all(a) as RuleRow[]).map(ruleOut);
+  // Apps < 0.2.0 can't decode "guarded" (one unknown value fails the whole bundle); for the engine it equals flexible.
+  const guardedOk = appVersionAtLeast(device.app_version, GUARDED_MIN_APP_VERSION);
+  const rules = (ctx.db.prepare('SELECT * FROM rules WHERE admin_id = ? ORDER BY created_at, id').all(a) as RuleRow[])
+    .map(ruleOut)
+    .map((r) => (r.strictness === 'guarded' && !guardedOk ? { ...r, strictness: 'flexible' as const } : r));
   const ovRows = ctx.db
     .prepare('SELECT * FROM overrides WHERE admin_id = ? AND (ends_at IS NULL OR ends_at > ?) ORDER BY issued_at, id')
     .all(a, nowIso) as OverrideRow[];
@@ -77,8 +81,8 @@ export function buildBundle(ctx: Ctx, device: Pick<DeviceRow, 'id' | 'admin_id' 
 }
 
 export function buildBundleById(ctx: Ctx, deviceId: string): PolicyBundle | null {
-  const d = ctx.db.prepare('SELECT id, admin_id, latest_version FROM devices WHERE id = ?').get(deviceId) as
-    | Pick<DeviceRow, 'id' | 'admin_id' | 'latest_version'> | undefined;
+  const d = ctx.db.prepare('SELECT id, admin_id, latest_version, app_version FROM devices WHERE id = ?').get(deviceId) as
+    | Pick<DeviceRow, 'id' | 'admin_id' | 'latest_version' | 'app_version'> | undefined;
   return d ? buildBundle(ctx, d) : null;
 }
 
