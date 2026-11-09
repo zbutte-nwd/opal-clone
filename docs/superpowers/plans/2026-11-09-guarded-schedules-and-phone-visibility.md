@@ -208,6 +208,13 @@ zod / vitest, Python 3 contract tools (ajv-style JSON Schema 2020-12).
 
 ### Task 7 (server): guarded in schemas, version-gated bundle, MCP add_schedule strictness
 
+> **Added by Mac/iOS agent (found while installing 0.2.0):** `devices.app_version` is only written at enroll, so an
+> already-paired phone stays `0.1.0` forever and would never get `guarded`. Every device request already carries
+> `User-Agent: Tether-iOS/<version>` (APIClient). In `deviceAuth` (or the ack handler), parse that and update
+> `app_version` when it differs. Test: enroll with appVersion 0.1.0, then GET /devices/me/policy with
+> `User-Agent: Tether-iOS/0.2.0` → a guarded rule comes back as `guarded`. No contract change. The user's phone
+> already runs 0.2.0 (installed 2026-11-09 04:15 PT).
+
 **Files:**
 - Modify: `server/src/engine/index.ts:12` (`strictness: 'flexible' | 'guarded' | 'strict'`)
 - Modify: `server/src/policy/schemas.ts:43` (zod enum + refine: guarded requires `action === 'block'`)
