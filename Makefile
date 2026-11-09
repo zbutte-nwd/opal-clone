@@ -29,3 +29,7 @@ vectors:
 
 bootstrap-mac:
 	./scripts/bootstrap-mac.sh
+
+.PHONY: e2e
+e2e: ## cross-stack smoke test: server + device API + Swift engine decode
+	./scripts/e2e-smoke.sh

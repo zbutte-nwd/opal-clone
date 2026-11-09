@@ -1,0 +1,32 @@
+# fly launch --no-deploy --copy-config ; fly volumes create tether_data --size 1 ; fly secrets set JWT_SECRET=... APNS_KEY_P8="$(cat AuthKey_XXXX.p8)" ...
+# Deploy from the repo root:  fly deploy -c server/fly.toml --dockerfile server/Dockerfile
+app = "tether-server"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8787"
+  DATABASE_PATH = "/data/tether.db"
+  TRUST_PROXY = "true"
+  APNS_ENV = "production"
+  # PUBLIC_BASE_URL = "https://tether-server.fly.dev"
+  # APNS_KEY_ID / APNS_TEAM_ID / APNS_TOPIC: set via `fly secrets set` (or here, they are not secret)
+
+[mounts]
+  source = "tether_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"   # in-process timers (stale job, push debounce) need a running machine
+  auto_start_machines = true
+  min_machines_running = 1     # SQLite: keep exactly one machine
+  [http_service.checks]
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
