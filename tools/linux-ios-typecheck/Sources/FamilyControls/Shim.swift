@@ -10,7 +10,7 @@ public struct FamilyActivitySelection: Codable, Equatable {
     public var webDomainTokens: Set<WebDomainToken> = []
     public var includeEntireCategory: Bool = false
 }
-public enum AuthorizationStatus: Int, Codable { case notDetermined, denied, approved }
+public enum AuthorizationStatus: Int, Codable { case notDetermined, denied, approved, approvedWithDataAccess }
 public enum FamilyControlsMember: Int { case child, individual }
 public final class AuthorizationCenter: ObservableObject {
     public static let shared = AuthorizationCenter()

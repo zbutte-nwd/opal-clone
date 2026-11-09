@@ -2,6 +2,7 @@ import SwiftUI
 import FamilyControls
 import ManagedSettings
 import ManagedSettingsUI
+import TetherCore
 
 /// Shows counts and the token labels of a FamilyActivitySelection.
 /// `Label(token)` renders the real app name/icon; it only works for tokens issued by the picker on a real device.

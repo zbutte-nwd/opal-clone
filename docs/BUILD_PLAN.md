@@ -14,9 +14,9 @@ server together.
 | P1 | cloud (Linux) | Workstreams W1–W7 in parallel (below) | see table |
 | P2 | cloud (Linux) | W8: audit all Apple-framework Swift (can't be compiled on Linux) against real SDK signatures | ✅ |
 | P3 | cloud (Linux) | Integration: cross-stack e2e smoke test (`make e2e`), device time zone on ack, Linux iOS type-check harness (`make typecheck-ios-linux`), placeholder app icon | ✅ |
-| M0 | **Mac** | Toolchain + signing setup (`docs/MAC_HANDOFF.md`) | ⬜ |
+| M0 | **Mac** | Toolchain + signing setup (`docs/MAC_HANDOFF.md`) | ✅ Xcode 26.5, paid team W6Y8QLHYZ3; all 6 targets signed with Family Controls (Development) + Push, installed on iPhone 17 Pro. Distribution entitlement not yet requested |
 | M1 | **Mac + iPhone** | Feasibility spikes S1–S6 | ⬜ |
-| M2 | **Mac** | Generate Xcode project, compile all targets, fix errors, unit tests on iOS sim | ⬜ |
+| M2 | **Mac** | Generate Xcode project, compile all targets, fix errors, unit tests on iOS sim | 🟡 all 6 targets compile with 0 warnings (iOS 26.5 SDK; 2 fixes: missing import, `.approvedWithDataAccess`); launches in Simulator with stub; screen walkthrough pending |
 | M3 | **Mac + iPhone** | On-device test matrix (`docs/TEST_PLAN_DEVICE.md`) | ⬜ |
 | M4 | **Mac** | Family Controls distribution entitlement, TestFlight, App Store review notes | ⬜ |
 | S1 | anywhere | Deploy server (Fly.io/Render/VM) + APNs key | ⬜ |

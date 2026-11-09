@@ -30,7 +30,7 @@ final class LivePlatformServices: PlatformServices {
 
     var screenTimeAuth: ScreenTimeAuth {
         switch authManager.status {
-        case .approved: return .approved
+        case .approved, .approvedWithDataAccess: return .approved
         case .denied: return .denied
         case .notDetermined: return .notDetermined
         @unknown default: return .notDetermined

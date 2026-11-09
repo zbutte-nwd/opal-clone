@@ -21,6 +21,7 @@ public struct ReconcileResult: Sendable {
 
 /// The one function every process calls (ARCHITECTURE §1). Synchronous, cheap, no network,
 /// no UIKit: safe from the app, Monitor, ShieldAction and the notification service extension.
+/// Shields apply before it returns; DeviceActivity scheduling is queued (see `ActivityScheduler.queue`).
 public final class Reconciler: @unchecked Sendable {
     public static let shared = Reconciler()
 

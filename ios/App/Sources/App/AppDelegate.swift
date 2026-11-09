@@ -16,7 +16,9 @@ final class AppEnvironment {
     private init() {
         let env = ProcessInfo.processInfo.environment["TETHER_PLATFORM_STUB"]
         var useStub = false
-        #if targetEnvironment(simulator)
+        #if TETHER_DEMO
+        useStub = true            // UI-only build for free signing teams (no Family Controls entitlement).
+        #elseif targetEnvironment(simulator)
         useStub = env != "0"      // Simulator defaults to the stub; TETHER_PLATFORM_STUB=0 forces Live.
         #else
         useStub = env == "1"

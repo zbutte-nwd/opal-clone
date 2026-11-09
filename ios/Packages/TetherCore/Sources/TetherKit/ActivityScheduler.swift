@@ -44,6 +44,14 @@ public final class ActivityScheduler: @unchecked Sendable {
         rawValue.hasPrefix(usagePrefix) ? String(rawValue.dropFirst(usagePrefix.count)) : nil
     }
 
+    /// Every DeviceActivityCenter call runs here, never on the caller's thread. DeviceActivityMonitor
+    /// callbacks arrive while UsageTrackingAgent holds its store; calling back into it synchronously
+    /// from the callback deadlocks the agent, the Monitor and anything waiting on it (seen on device,
+    /// iOS 26.6: "unblock_deadlock_UsageTrackingAgent", app main thread killed by the watchdog).
+    /// Serial and process-wide, so reconciles still apply in order.
+    /// VERIFY: spike S6 — the Monitor process stays alive long enough to drain this after returning.
+    private static let queue = DispatchQueue(label: "tether.activity-scheduler", qos: .utility)
+
     private let center = DeviceActivityCenter()
     private let signaturesURL: URL
 
@@ -53,13 +61,31 @@ public final class ActivityScheduler: @unchecked Sendable {
 
     // MARK: Public
 
-    /// Brings the registered activities in line with `transitions` and `usageRules`.
-    /// Never throws or crashes: failures are logged.
+    /// Brings the registered activities in line with `transitions` and `usageRules`, asynchronously
+    /// on `queue`. Never throws or crashes: failures are logged.
     public func schedule(transitions: [Date],
                          usageRules: [Rule],
                          selections: [GroupID: FamilyActivitySelection],
                          timeZone: TimeZone = .current,
                          now: Date = Date()) {
+        Self.queue.async {
+            self.scheduleNow(transitions: transitions, usageRules: usageRules, selections: selections,
+                             timeZone: timeZone, now: now)
+        }
+    }
+
+    /// Stops every Tether activity (protection disabled), asynchronously on `queue`.
+    public func stopAll() {
+        Self.queue.async { self.stopAllNow() }
+    }
+
+    // MARK: Scheduling (on `queue` only)
+
+    private func scheduleNow(transitions: [Date],
+                             usageRules: [Rule],
+                             selections: [GroupID: FamilyActivitySelection],
+                             timeZone: TimeZone,
+                             now: Date) {
         // DeviceActivitySchedule interprets DateComponents in the DEVICE calendar/time zone,
         // so absolute instants must be decomposed with the device calendar — not the policy
         // time zone (`timeZone`, which may come from the server bundle). `timeZone` is kept in
@@ -167,8 +193,7 @@ public final class ActivityScheduler: @unchecked Sendable {
         saveSignatures(sigs)
     }
 
-    /// Stops every Tether activity (protection disabled).
-    public func stopAll() {
+    private func stopAllNow() {
         let ours = center.activities.filter {
             $0.rawValue == Self.dailyName || $0.rawValue.hasPrefix(Self.oneShotPrefix) || $0.rawValue.hasPrefix(Self.usagePrefix)
         }

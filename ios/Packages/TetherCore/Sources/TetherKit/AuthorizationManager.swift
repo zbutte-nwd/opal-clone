@@ -35,7 +35,7 @@ public final class AuthorizationManager {
         recordIfChanged(status)
     }
 
-    public var isApproved: Bool { status == .approved }
+    public var isApproved: Bool { Self.value(for: status) == .approved }
 
     /// The string form used by the ack payload and events.
     public var statusValue: AuthorizationStatusValue { Self.value(for: status) }
@@ -82,7 +82,7 @@ public final class AuthorizationManager {
 
     nonisolated static func value(for s: AuthorizationStatus) -> AuthorizationStatusValue {
         switch s {
-        case .approved: return .approved
+        case .approved, .approvedWithDataAccess: return .approved
         case .denied: return .denied
         case .notDetermined: return .notDetermined
         @unknown default: return .notDetermined
