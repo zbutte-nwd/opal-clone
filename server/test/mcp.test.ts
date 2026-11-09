@@ -102,6 +102,37 @@ describe('mcp tools', () => {
     expect((await tool('pairing_code')).text).toMatch(/^Pairing code [A-Z0-9]{4}-[A-Z0-9]{4}/);
     expect((await tool('delete_group', { group: 'Social' })).text).toBe('Deleted group Social.');
   });
+
+  it('unlock requests: list (also in status), approve groups with minutes, deny, approve disableProtection', async () => {
+    const { tool, h, dev } = await setup();
+    await tool('create_group', { name: 'Games' });
+    const gid = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json.groups[0].id;
+    expect((await tool('unlock_requests')).text).toBe('No pending unlock requests.');
+
+    const g = (await h.req('POST', '/v1/devices/me/unlock-requests', dev.deviceToken, { kind: 'groups', groupIds: [gid], minutes: 15, reason: 'homework done' })).json;
+    const p = (await h.req('POST', '/v1/devices/me/unlock-requests', dev.deviceToken, { kind: 'disableProtection' })).json;
+    const list = (await tool('unlock_requests')).text;
+    expect(list).toContain(`unlock Games for 15 min "homework done" from Zakir iPhone`);
+    expect(list).toContain(`turn off protection from Zakir iPhone`);
+    expect(list).toContain(`id=${g.id}`);
+    expect((await tool('status')).text).toContain('Pending unlock requests: 2 (see unlock_requests)');
+
+    const ap = await tool('approve_unlock', { id: g.id, minutes: 20 });
+    expect(ap.text).toMatch(/^Approved: Games unlocked for 20 min/);
+    const pol = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json;
+    expect(pol.overrides).toHaveLength(1);
+    expect(pol.overrides[0].action).toBe('unblock');
+    expect((await tool('approve_unlock', { id: g.id })).isError).toBe(true); // already decided
+
+    const dn = await tool('deny_unlock', { id: p.id, note: 'not tonight' });
+    expect(dn.text).toBe('Denied: turn off protection.');
+    expect((await h.req('GET', `/v1/devices/me/unlock-requests/${p.id}`, dev.deviceToken)).json.status).toBe('denied');
+
+    const p2 = (await h.req('POST', '/v1/devices/me/unlock-requests', dev.deviceToken, { kind: 'disableProtection' })).json;
+    expect((await tool('approve_unlock', { id: p2.id })).text).toBe('Approved: the phone may now turn off protection.');
+    expect((await tool('unlock_requests', { all: true })).text).toContain('[denied]');
+    expect((await tool('unlock_requests')).text).toBe('No pending unlock requests.');
+  });
 });
 
 describe('parseTime', () => {

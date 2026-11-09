@@ -18,7 +18,9 @@ const INSTRUCTIONS = `Tether blocks app/website groups on the user's iPhone.
   phone's time zone, which status reports along with the current local time.
 - Blocks from this server are strict on the phone (the user cannot pause them); end them with end.
 - Which apps belong to a group is chosen on the phone (Apple privacy rule); websites can be set here.
-- Changes reach the phone within seconds via push (or at next app open if push isn't configured).`;
+- Changes reach the phone within seconds via push (or at next app open if push isn't configured).
+- Unlock requests come from the person holding the phone (unlock a group for N minutes, or turn off
+  protection). status shows how many are pending; approve or deny one only when the admin tells you to.`;
 
 // ---------------------------------------------------------------- tool schemas
 
@@ -63,6 +65,13 @@ const TOOLS = [
       timeZone: { type: ['string', 'null'], description: 'IANA zone pinning schedules, or null = phone local' } } } },
   { name: 'pairing_code', description: 'Create a 10-minute code to pair a device (Tether app → Settings → Server).',
     inputSchema: { type: 'object', properties: { deviceName: { type: 'string' } } } },
+  { name: 'unlock_requests', description: 'List unlock requests sent from the phone (unlock a group for a while, or turn off protection). Pending only unless all is true.',
+    inputSchema: { type: 'object', properties: { all: { type: 'boolean', description: 'Include decided/expired requests' } } } },
+  { name: 'approve_unlock', description: 'Approve a pending unlock request. Group requests unlock for the requested minutes (or minutes given here); a turn-off-protection request lets the phone switch protection off.',
+    inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' },
+      minutes: { type: 'integer', minimum: 1, maximum: 1440, description: 'Group requests only: override the requested duration' } } } },
+  { name: 'deny_unlock', description: 'Deny a pending unlock request; the note is shown on the phone.',
+    inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, note: { type: 'string', maxLength: 500 } } } },
 ] as const;
 
 // ---------------------------------------------------------------- plumbing
@@ -73,6 +82,8 @@ type Json = any; // REST responses, shaped by contracts/api.md
 interface Group { id: string; name: string; webDomains: string[]; colorHex?: string | null }
 interface Rule { id: string; name: string; groupIds: string[]; enabled: boolean; action: string; strictness: string;
   trigger: { type: string; windows?: { days: number[]; start: string; end: string }[]; active?: boolean; dailyMinutes?: number } }
+interface Unlock { id: string; deviceName: string | null; kind: 'groups' | 'disableProtection'; groupIds: string[];
+  minutes: number | null; reason: string | null; status: string; createdAt: string; expiresAt: string; note: string | null }
 interface Override { id: string; groupIds: string[]; action: string; startsAt: string; endsAt: string | null; reason: string | null; deviceIds?: string[] | null }
 
 class Session {
@@ -219,9 +230,25 @@ async function timedOverride(s: Session, now: Date, a: Args, action: 'block' | '
   return `${action === 'block' ? 'Blocked' : 'Allowed'} ${names} ${when}${until} (${tz}). id=${o.id}`;
 }
 
+function unlockWhat(r: Unlock, gname: (id: string) => string, minutes = r.minutes): string {
+  return r.kind === 'disableProtection' ? 'turn off protection'
+    : `unlock ${r.groupIds.map(gname).join(', ') || '(deleted groups)'}${minutes ? ` for ${minutes} min` : ''}`;
+}
+
+async function unlockRequests(s: Session, now: Date, all: boolean): Promise<string> {
+  const [list, groups, tz] = await Promise.all([
+    s.api('GET', all ? '/unlock-requests' : '/unlock-requests?status=pending'), s.groups(), s.tz()]);
+  const reqs = list.requests as Unlock[];
+  if (!reqs.length) return all ? 'No unlock requests.' : 'No pending unlock requests.';
+  const gname = (id: string) => groups.find((g) => g.id === id)?.name ?? id;
+  return reqs.map((r) => `${all ? `[${r.status}] ` : ''}${unlockWhat(r, gname)}${r.reason ? ` "${r.reason}"` : ''}`
+    + ` from ${r.deviceName ?? 'unknown device'}, ${fmtTime(r.createdAt, tz, now)}${r.note ? ` (note: ${r.note})` : ''} id=${r.id}`).join('\n');
+}
+
 async function status(s: Session, now: Date): Promise<string> {
-  const [settings, groups, rules, overrides, devices] = await Promise.all([
+  const [settings, groups, rules, overrides, devices, unlocks] = await Promise.all([
     s.api('GET', '/settings'), s.groups(), s.rules(), s.api('GET', '/overrides?active=true'), s.api('GET', '/devices'),
+    s.api('GET', '/unlock-requests?status=pending'),
   ]);
   const tz = s.timeZone(settings.timeZone ?? null);
   const gname = (id: string) => groups.find((g) => g.id === id)?.name ?? id;
@@ -250,6 +277,7 @@ async function status(s: Session, now: Date): Promise<string> {
       : t.type === 'manual' ? `mode, ${t.active ? 'ON' : 'off'}` : `${t.dailyMinutes} min/day limit`;
     L.push(`  ${r.name}: ${r.action} ${r.groupIds.map(gname).join(', ')} | ${what}${r.strictness === 'strict' ? ' | strict' : ''}${r.enabled ? '' : ' | disabled'} id=${r.id}`);
   }
+  if (unlocks.requests.length) L.push('', `Pending unlock requests: ${unlocks.requests.length} (see unlock_requests)`);
   L.push('', `Settings: protectionLock=${settings.protectionLock}, allowLocalRules=${settings.allowLocalRules}, denyAppRemoval=${settings.denyAppRemoval}, timeZone=${settings.timeZone ?? 'phone local'}`);
   return L.join('\n');
 }
@@ -321,6 +349,19 @@ async function callTool(s: Session, now: Date, name: string, a: Args): Promise<s
     case 'pairing_code': {
       const c = await s.api('POST', '/pairing-codes', a.deviceName ? { deviceName: a.deviceName } : {});
       return `Pairing code ${c.code} (expires ${c.expiresAt}). In Tether: Settings → Server, enter the code. Link: ${c.qrPayload}`;
+    }
+    case 'unlock_requests': return unlockRequests(s, now, !!a.all);
+    case 'approve_unlock': {
+      const r: Unlock = await s.api('POST', `/unlock-requests/${encodeURIComponent(a.id)}/approve`, a.minutes !== undefined ? { minutes: a.minutes } : {});
+      if (r.kind === 'disableProtection') return 'Approved: the phone may now turn off protection.';
+      const groups = await s.groups();
+      const gname = (id: string) => groups.find((g) => g.id === id)?.name ?? id;
+      return `Approved: ${r.groupIds.map(gname).join(', ')} unlocked for ${r.minutes} min. id=${r.id}`;
+    }
+    case 'deny_unlock': {
+      const r: Unlock = await s.api('POST', `/unlock-requests/${encodeURIComponent(a.id)}/deny`, a.note ? { note: a.note } : {});
+      const groups = await s.groups();
+      return `Denied: ${unlockWhat(r, (id) => groups.find((g) => g.id === id)?.name ?? id)}.`;
     }
     default: throw new ToolError(`Unknown tool ${name}`);
   }
