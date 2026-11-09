@@ -1,0 +1,6279 @@
+{
+  "description": "Golden vectors for PolicyEngine.evaluate. See docs/ARCHITECTURE.md \u00a73. Each vector: evaluate input at `now` with device time zone `deviceTimeZone` (bundle.timeZone overrides it). `expect` lists EVERY known group (bundle groups + local groups) with blocked/strict/reason. Implementations in Swift (TetherCore) and TypeScript (server) must pass all vectors.",
+  "vectors": [
+    {
+      "name": "empty input: nothing blocked",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "no bundle, no local state",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": null,
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {}
+    },
+    {
+      "name": "schedule active on weekday",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social",
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "schedule end is exclusive",
+      "now": "2026-11-09T23:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "schedule start is inclusive",
+      "now": "2026-11-09T16:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "before schedule start",
+      "now": "2026-11-09T15:59:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "weekend day not in schedule",
+      "now": "2026-11-14T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overnight window started previous day is active",
+      "now": "2026-11-09T13:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_night",
+              "name": "rule_night",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      7
+                    ],
+                    "start": "22:00",
+                    "end": "06:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_night"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overnight window ends exclusive next morning",
+      "now": "2026-11-09T14:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_night",
+              "name": "rule_night",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      7
+                    ],
+                    "start": "22:00",
+                    "end": "06:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overnight window not yet started",
+      "now": "2026-11-09T05:59:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_night",
+              "name": "rule_night",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      7
+                    ],
+                    "start": "22:00",
+                    "end": "06:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overnight window active before midnight",
+      "now": "2026-11-09T07:30:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_night",
+              "name": "rule_night",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      7
+                    ],
+                    "start": "22:00",
+                    "end": "06:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_night"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "overnight window for Monday is not active early Monday",
+      "now": "2026-11-09T13:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_night",
+              "name": "rule_night",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1
+                    ],
+                    "start": "22:00",
+                    "end": "06:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "days lists the day the window STARTS"
+    },
+    {
+      "name": "end 24:00 active at 23:59",
+      "now": "2026-11-10T07:59:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_eve",
+              "name": "rule_eve",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1
+                    ],
+                    "start": "20:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_eve"
+          }
+        }
+      }
+    },
+    {
+      "name": "end 24:00 inactive at next midnight",
+      "now": "2026-11-10T08:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_eve",
+              "name": "rule_eve",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1
+                    ],
+                    "start": "20:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "start equals end is never active",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_bad",
+              "name": "rule_bad",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1
+                    ],
+                    "start": "09:00",
+                    "end": "09:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "strict rule marks strict",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "strict",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "disabled rule ignored",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": false,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "manual rule active",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_hw",
+              "name": "rule_hw",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "manual",
+                "active": true
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_hw"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "manual rule inactive",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_hw",
+              "name": "rule_hw",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "manual",
+                "active": false
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "usage limit hit today blocks",
+      "now": "2026-11-10T02:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_lim",
+              "name": "rule_lim",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "usageLimit",
+                "dailyMinutes": 30,
+                "days": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": [
+          {
+            "ruleId": "rule_lim",
+            "day": "2026-11-09"
+          }
+        ]
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_lim"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "usage limit hit yesterday does not block",
+      "now": "2026-11-10T02:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_lim",
+              "name": "rule_lim",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "usageLimit",
+                "dailyMinutes": 30,
+                "days": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": [
+          {
+            "ruleId": "rule_lim",
+            "day": "2026-11-08"
+          }
+        ]
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "usage limit day computed in local tz",
+      "now": "2026-11-10T07:30:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_lim",
+              "name": "rule_lim",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "usageLimit",
+                "dailyMinutes": 30,
+                "days": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": [
+          {
+            "ruleId": "rule_lim",
+            "day": "2026-11-09"
+          }
+        ]
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_lim"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "23:30 PST is already Tuesday in UTC; the day must be the local day"
+    },
+    {
+      "name": "usage limit not on listed day",
+      "now": "2026-11-15T02:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_lim",
+              "name": "rule_lim",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "usageLimit",
+                "dailyMinutes": 30,
+                "days": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": [
+          {
+            "ruleId": "rule_lim",
+            "day": "2026-11-14"
+          }
+        ]
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "higher-priority allow beats block",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_all",
+              "name": "rule_all",
+              "groupIds": [
+                "grp_social",
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            },
+            {
+              "id": "rule_news_ok",
+              "name": "rule_news_ok",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 10,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_all"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_news_ok"
+          }
+        }
+      }
+    },
+    {
+      "name": "equal priority: block beats allow",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_all",
+              "name": "rule_all",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            },
+            {
+              "id": "rule_news_ok",
+              "name": "rule_news_ok",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_all"
+          }
+        }
+      }
+    },
+    {
+      "name": "higher-priority block beats lower allow",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_all",
+              "name": "rule_all",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 5,
+              "source": "server"
+            },
+            {
+              "id": "rule_news_ok",
+              "name": "rule_news_ok",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 1,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_all"
+          }
+        }
+      }
+    },
+    {
+      "name": "focus session blocks",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "focus session end exclusive",
+      "now": "2026-11-14T18:25:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "focus session ended early",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": false,
+            "endedAt": "2026-11-14T18:05:00Z"
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "strict session marks strict",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": true
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "session reason prefers strict session",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_a",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:20:00Z",
+            "strict": false
+          },
+          {
+            "id": "ses_b",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T19:00:00Z",
+            "strict": true
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "session",
+            "id": "ses_b"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "session reason earliest-ending when none strict",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_a",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T19:00:00Z",
+            "strict": false
+          },
+          {
+            "id": "ses_b",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:20:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "session",
+            "id": "ses_b"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "session beats allow rule",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_news_ok",
+              "name": "rule_news_ok",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 100,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_news"
+            ],
+            "startsAt": "2026-11-09T16:30:00Z",
+            "endsAt": "2026-11-09T17:30:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        }
+      }
+    },
+    {
+      "name": "session + strict rule: reason session, strict from rule",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "strict",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T16:30:00Z",
+            "endsAt": "2026-11-09T17:30:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "pause lifts flexible rule block",
+      "now": "2026-11-09T17:02:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social",
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T17:00:00Z",
+            "endsAt": "2026-11-09T17:05:00Z",
+            "ruleId": "rule_school"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "pause",
+            "id": "pau_1"
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "expired pause has no effect",
+      "now": "2026-11-09T17:05:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T17:00:00Z",
+            "endsAt": "2026-11-09T17:05:00Z",
+            "ruleId": "rule_school"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "pause cannot lift strict rule",
+      "now": "2026-11-09T17:02:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "strict",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T17:00:00Z",
+            "endsAt": "2026-11-09T17:05:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "pause lifts flexible session",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:09:00Z",
+            "endsAt": "2026-11-14T18:14:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "pause",
+            "id": "pau_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "pause cannot lift strict session",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": true
+          }
+        ],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:09:00Z",
+            "endsAt": "2026-11-14T18:14:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "pause with nothing to lift reports none",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:09:00Z",
+            "endsAt": "2026-11-14T18:14:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "override block with no end",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "issuedAt": "2026-11-14T19:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_1"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "override block beats allow rule",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_news_ok",
+              "name": "rule_news_ok",
+              "groupIds": [
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 100,
+              "source": "server"
+            }
+          ],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_news"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-09T16:00:00Z",
+              "issuedAt": "2026-11-09T16:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_1"
+          }
+        }
+      }
+    },
+    {
+      "name": "override block cannot be paused",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "issuedAt": "2026-11-14T19:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_1",
+            "groupIds": [
+              "grp_games"
+            ],
+            "startsAt": "2026-11-14T19:59:00Z",
+            "endsAt": "2026-11-14T20:04:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_1"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "override unblock beats strict rule",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "strict",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_social"
+              ],
+              "action": "unblock",
+              "startsAt": "2026-11-09T16:50:00Z",
+              "endsAt": "2026-11-09T17:20:00Z",
+              "issuedAt": "2026-11-09T16:50:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "override unblock beats strict session",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_social"
+              ],
+              "action": "unblock",
+              "startsAt": "2026-11-14T18:05:00Z",
+              "issuedAt": "2026-11-14T18:05:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": true
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "expired timed unblock: block restored offline",
+      "now": "2026-11-09T17:20:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_social"
+              ],
+              "action": "unblock",
+              "startsAt": "2026-11-09T16:50:00Z",
+              "endsAt": "2026-11-09T17:20:00Z",
+              "issuedAt": "2026-11-09T16:50:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "future override not yet active",
+      "now": "2026-11-14T18:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_1",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "issuedAt": "2026-11-14T17:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "latest issued override wins",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_b",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-14T17:00:00Z",
+              "issuedAt": "2026-11-14T17:00:00Z"
+            },
+            {
+              "id": "ovr_a",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "unblock",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "endsAt": "2026-11-14T21:00:00Z",
+              "issuedAt": "2026-11-14T19:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_a"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "override issuedAt tie broken by larger id",
+      "now": "2026-11-14T20:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [
+            {
+              "id": "ovr_a",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "unblock",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "issuedAt": "2026-11-14T19:00:00Z"
+            },
+            {
+              "id": "ovr_b",
+              "groupIds": [
+                "grp_games"
+              ],
+              "action": "block",
+              "startsAt": "2026-11-14T19:00:00Z",
+              "issuedAt": "2026-11-14T19:00:00Z"
+            }
+          ],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "override",
+            "id": "ovr_b"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "local group + local rule",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [
+          {
+            "id": "lgrp_yt",
+            "name": "YouTube",
+            "webDomains": [
+              "youtube.com"
+            ],
+            "source": "local"
+          }
+        ],
+        "localRules": [
+          {
+            "id": "lrule_1",
+            "name": "lrule_1",
+            "groupIds": [
+              "lgrp_yt"
+            ],
+            "enabled": true,
+            "action": "block",
+            "trigger": {
+              "type": "schedule",
+              "windows": [
+                {
+                  "days": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                  ],
+                  "start": "08:00",
+                  "end": "15:00"
+                }
+              ]
+            },
+            "strictness": "flexible",
+            "priority": 0,
+            "source": "local"
+          }
+        ],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "lgrp_yt": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "lrule_1"
+          }
+        }
+      }
+    },
+    {
+      "name": "local rules ignored when allowLocalRules is false",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "remoteApproval",
+            "allowLocalRules": false,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [
+          {
+            "id": "lgrp_yt",
+            "name": "YouTube",
+            "webDomains": [
+              "youtube.com"
+            ],
+            "source": "local"
+          }
+        ],
+        "localRules": [
+          {
+            "id": "lrule_1",
+            "name": "lrule_1",
+            "groupIds": [
+              "grp_social",
+              "lgrp_yt"
+            ],
+            "enabled": true,
+            "action": "block",
+            "trigger": {
+              "type": "schedule",
+              "windows": [
+                {
+                  "days": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                  ],
+                  "start": "08:00",
+                  "end": "15:00"
+                }
+              ]
+            },
+            "strictness": "flexible",
+            "priority": 0,
+            "source": "local"
+          }
+        ],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "lgrp_yt": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "local groups still appear in output (unblocked); local sessions are still honored"
+    },
+    {
+      "name": "local session honored even when allowLocalRules is false",
+      "now": "2026-11-14T18:10:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "remoteApproval",
+            "allowLocalRules": false,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [
+          {
+            "id": "ses_1",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-14T18:00:00Z",
+            "endsAt": "2026-11-14T18:25:00Z",
+            "strict": false
+          }
+        ],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "session",
+            "id": "ses_1"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "rules referencing unknown groups are ignored",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_x",
+              "name": "rule_x",
+              "groupIds": [
+                "grp_unknown",
+                "grp_news"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_x"
+          }
+        }
+      },
+      "note": "output contains only known groups; grp_unknown must not appear"
+    },
+    {
+      "name": "bundle timeZone pins evaluation",
+      "now": "2026-11-09T14:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          },
+          "timeZone": "America/New_York"
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_school"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "14:00Z = 09:00 New York = 06:00 Los Angeles"
+    },
+    {
+      "name": "device timeZone used when bundle has none",
+      "now": "2026-11-09T14:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "06:00 Los Angeles"
+    },
+    {
+      "name": "multiple windows in one rule",
+      "now": "2026-11-11T03:30:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_multi",
+              "name": "rule_multi",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  },
+                  {
+                    "days": [
+                      2,
+                      4
+                    ],
+                    "start": "19:00",
+                    "end": "21:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_multi"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "DST spring-forward window still evaluated by wall clock",
+      "now": "2026-03-08T10:30:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_dst",
+              "name": "rule_dst",
+              "groupIds": [
+                "grp_games"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      7
+                    ],
+                    "start": "01:00",
+                    "end": "04:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_games": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_dst"
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      },
+      "note": "10:30Z = 03:30 PDT on Sunday 2026-03-08"
+    },
+    {
+      "name": "tie among equal-priority block rules: strict first",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_a",
+              "name": "rule_a",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            },
+            {
+              "id": "rule_b",
+              "name": "rule_b",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "strict",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": true,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_b"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "tie among equal-priority block rules: smallest id",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_z",
+              "name": "rule_z",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            },
+            {
+              "id": "rule_m",
+              "name": "rule_m",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": true,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_m"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "tie among equal-priority allow rules: smallest id",
+      "now": "2026-11-09T17:00:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_z",
+              "name": "rule_z",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7
+                    ],
+                    "start": "00:00",
+                    "end": "24:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            },
+            {
+              "id": "rule_m",
+              "name": "rule_m",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "allow",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "rule",
+            "id": "rule_m"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    },
+    {
+      "name": "multiple pauses: latest-ending pause is the reason",
+      "now": "2026-11-09T17:02:00Z",
+      "deviceTimeZone": "America/Los_Angeles",
+      "input": {
+        "bundle": {
+          "version": 1,
+          "generatedAt": "2026-11-01T00:00:00Z",
+          "groups": [
+            {
+              "id": "grp_social",
+              "name": "Social",
+              "webDomains": [
+                "tiktok.com",
+                "instagram.com"
+              ],
+              "colorHex": "#FF5A5F",
+              "source": "server"
+            },
+            {
+              "id": "grp_games",
+              "name": "Games",
+              "webDomains": [],
+              "source": "server"
+            },
+            {
+              "id": "grp_news",
+              "name": "News",
+              "webDomains": [
+                "news.ycombinator.com"
+              ],
+              "source": "server"
+            }
+          ],
+          "rules": [
+            {
+              "id": "rule_school",
+              "name": "rule_school",
+              "groupIds": [
+                "grp_social"
+              ],
+              "enabled": true,
+              "action": "block",
+              "trigger": {
+                "type": "schedule",
+                "windows": [
+                  {
+                    "days": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5
+                    ],
+                    "start": "08:00",
+                    "end": "15:00"
+                  }
+                ]
+              },
+              "strictness": "flexible",
+              "priority": 0,
+              "source": "server"
+            }
+          ],
+          "overrides": [],
+          "settings": {
+            "protectionLock": "partnerPIN",
+            "allowLocalRules": true,
+            "denyAppRemoval": true
+          }
+        },
+        "localGroups": [],
+        "localRules": [],
+        "sessions": [],
+        "pauses": [
+          {
+            "id": "pau_b",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T17:00:00Z",
+            "endsAt": "2026-11-09T17:05:00Z"
+          },
+          {
+            "id": "pau_a",
+            "groupIds": [
+              "grp_social"
+            ],
+            "startsAt": "2026-11-09T17:01:00Z",
+            "endsAt": "2026-11-09T17:10:00Z"
+          }
+        ],
+        "usageLimitHits": []
+      },
+      "expect": {
+        "grp_social": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "pause",
+            "id": "pau_a"
+          }
+        },
+        "grp_games": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        },
+        "grp_news": {
+          "blocked": false,
+          "strict": false,
+          "reason": {
+            "kind": "none",
+            "id": null
+          }
+        }
+      }
+    }
+  ]
+}

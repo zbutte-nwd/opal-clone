@@ -1,0 +1,13 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Tether",
+      "body": "Your focus settings were updated"
+    },
+    "mutable-content": 1
+  },
+  "tether": {
+    "type": "policyUpdated",
+    "version": 42
+  }
+}

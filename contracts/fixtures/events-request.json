@@ -1,0 +1,17 @@
+{
+  "events": [
+    {
+      "id": "evt_01",
+      "type": "authorizationChanged",
+      "occurredAt": "2026-11-09T17:00:00Z",
+      "data": {
+        "status": "denied"
+      }
+    },
+    {
+      "id": "evt_02",
+      "type": "heartbeat",
+      "occurredAt": "2026-11-09T17:05:00Z"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "version": 42,
+  "appliedAt": "2026-11-09T17:00:03Z",
+  "blockedGroupIds": [
+    "grp_social"
+  ],
+  "authorizationStatus": "approved"
+}

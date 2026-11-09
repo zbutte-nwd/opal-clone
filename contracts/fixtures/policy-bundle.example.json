@@ -1,0 +1,152 @@
+{
+  "version": 42,
+  "generatedAt": "2026-11-01T00:00:00Z",
+  "groups": [
+    {
+      "id": "grp_social",
+      "name": "Social",
+      "webDomains": [
+        "tiktok.com",
+        "instagram.com"
+      ],
+      "colorHex": "#FF5A5F",
+      "source": "server"
+    },
+    {
+      "id": "grp_games",
+      "name": "Games",
+      "webDomains": [],
+      "source": "server"
+    },
+    {
+      "id": "grp_news",
+      "name": "News",
+      "webDomains": [
+        "news.ycombinator.com"
+      ],
+      "source": "server"
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule_all",
+      "name": "rule_all",
+      "groupIds": [
+        "grp_social",
+        "grp_news"
+      ],
+      "enabled": true,
+      "action": "block",
+      "trigger": {
+        "type": "schedule",
+        "windows": [
+          {
+            "days": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "start": "00:00",
+            "end": "24:00"
+          }
+        ]
+      },
+      "strictness": "flexible",
+      "priority": 0,
+      "source": "server"
+    },
+    {
+      "id": "rule_news_ok",
+      "name": "rule_news_ok",
+      "groupIds": [
+        "grp_news"
+      ],
+      "enabled": true,
+      "action": "allow",
+      "trigger": {
+        "type": "schedule",
+        "windows": [
+          {
+            "days": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "start": "08:00",
+            "end": "15:00"
+          }
+        ]
+      },
+      "strictness": "flexible",
+      "priority": 10,
+      "source": "server"
+    },
+    {
+      "id": "rule_hw",
+      "name": "Homework mode",
+      "groupIds": [
+        "grp_games"
+      ],
+      "enabled": true,
+      "action": "block",
+      "trigger": {
+        "type": "manual",
+        "active": false
+      },
+      "strictness": "strict",
+      "priority": 0,
+      "source": "server"
+    },
+    {
+      "id": "rule_lim",
+      "name": "30 min social",
+      "groupIds": [
+        "grp_social"
+      ],
+      "enabled": true,
+      "action": "block",
+      "trigger": {
+        "type": "usageLimit",
+        "dailyMinutes": 30,
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      },
+      "strictness": "flexible",
+      "priority": 0,
+      "maxPausesPerDay": 3,
+      "source": "server"
+    }
+  ],
+  "overrides": [
+    {
+      "id": "ovr_1",
+      "groupIds": [
+        "grp_games"
+      ],
+      "action": "unblock",
+      "startsAt": "2026-11-09T17:00:00Z",
+      "endsAt": "2026-11-09T17:30:00Z",
+      "issuedAt": "2026-11-09T17:00:00Z",
+      "reason": "Approved unlock request"
+    }
+  ],
+  "settings": {
+    "protectionLock": "partnerPIN",
+    "allowLocalRules": true,
+    "denyAppRemoval": true
+  },
+  "timeZone": null
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tether.dev/schemas/policy-bundle.schema.json",
+  "title": "PolicyBundle",
+  "description": "Server -> device policy. See docs/ARCHITECTURE.md §2-3. Never contains app identities.",
+  "type": "object",
+  "required": ["version", "generatedAt", "groups", "rules", "overrides", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "timeZone": { "type": ["string", "null"], "description": "IANA tz; null/absent = device local time zone" },
+    "groups": { "type": "array", "items": { "$ref": "#/$defs/BlockGroup" } },
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/Rule" } },
+    "overrides": { "type": "array", "items": { "$ref": "#/$defs/Override" } },
+    "settings": { "$ref": "#/$defs/Settings" }
+  },
+  "$defs": {
+    "Id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "IsoWeekday": { "type": "integer", "minimum": 1, "maximum": 7, "description": "1=Monday ... 7=Sunday" },
+    "HHmm": { "type": "string", "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$" },
+    "Source": { "enum": ["server", "local"] },
+    "BlockGroup": {
+      "type": "object",
+      "required": ["id", "name", "webDomains"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "colorHex": { "type": ["string", "null"], "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "webDomains": { "type": "array", "maxItems": 50, "items": { "type": "string", "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$" } },
+        "source": { "$ref": "#/$defs/Source", "default": "server" }
+      }
+    },
+    "Window": {
+      "type": "object",
+      "required": ["days", "start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "days": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/IsoWeekday" } },
+        "start": { "$ref": "#/$defs/HHmm" },
+        "end": { "$ref": "#/$defs/HHmm" }
+      }
+    },
+    "Trigger": {
+      "oneOf": [
+        { "type": "object", "required": ["type", "windows"], "additionalProperties": false,
+          "properties": { "type": { "const": "schedule" }, "windows": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Window" } } } },
+        { "type": "object", "required": ["type", "dailyMinutes", "days"], "additionalProperties": false,
+          "properties": { "type": { "const": "usageLimit" }, "dailyMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+                          "days": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/IsoWeekday" } } } },
+        { "type": "object", "required": ["type", "active"], "additionalProperties": false,
+          "properties": { "type": { "const": "manual" }, "active": { "type": "boolean" } } }
+      ]
+    },
+    "Rule": {
+      "type": "object",
+      "required": ["id", "name", "groupIds", "enabled", "action", "trigger", "strictness"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "groupIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Id" } },
+        "enabled": { "type": "boolean" },
+        "action": { "enum": ["block", "allow"] },
+        "trigger": { "$ref": "#/$defs/Trigger" },
+        "strictness": { "enum": ["flexible", "strict"] },
+        "priority": { "type": "integer", "default": 0 },
+        "maxPausesPerDay": { "type": ["integer", "null"], "minimum": 0 },
+        "source": { "$ref": "#/$defs/Source", "default": "server" }
+      }
+    },
+    "Override": {
+      "type": "object",
+      "required": ["id", "groupIds", "action", "startsAt", "issuedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "groupIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Id" } },
+        "action": { "enum": ["block", "unblock"] },
+        "startsAt": { "type": "string", "format": "date-time" },
+        "endsAt": { "type": ["string", "null"], "format": "date-time" },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "reason": { "type": ["string", "null"], "maxLength": 200 }
+      }
+    },
+    "Settings": {
+      "type": "object",
+      "required": ["protectionLock", "allowLocalRules", "denyAppRemoval"],
+      "additionalProperties": false,
+      "properties": {
+        "protectionLock": { "enum": ["partnerPIN", "remoteApproval", "osOnly"] },
+        "allowLocalRules": { "type": "boolean" },
+        "denyAppRemoval": { "type": "boolean" }
+      }
+    }
+  }
+}

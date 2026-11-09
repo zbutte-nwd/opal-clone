@@ -1,0 +1,29 @@
+# Swift / Xcode
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+!ios/Packages/**/*.xcworkspace/
+DerivedData/
+xcuserdata/
+ios/Config/Local.xcconfig
+*.ipa
+*.dSYM.zip
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+# Data & secrets
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/data/
+*.p8
+.env
+.env.*
+!.env.example
+# OS
+.DS_Store
+__pycache__/

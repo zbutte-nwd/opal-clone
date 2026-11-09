@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tether.dev/schemas/engine-input.schema.json",
+  "title": "EngineInput",
+  "description": "Everything PolicyEngine.evaluate needs. Server bundle + device-local state.",
+  "type": "object",
+  "required": ["localGroups", "localRules", "sessions", "pauses", "usageLimitHits"],
+  "additionalProperties": false,
+  "properties": {
+    "bundle": { "oneOf": [ { "type": "null" }, { "$ref": "policy-bundle.schema.json" } ] },
+    "localGroups": { "type": "array", "items": { "$ref": "policy-bundle.schema.json#/$defs/BlockGroup" } },
+    "localRules": { "type": "array", "items": { "$ref": "policy-bundle.schema.json#/$defs/Rule" } },
+    "sessions": { "type": "array", "items": { "$ref": "#/$defs/FocusSession" } },
+    "pauses": { "type": "array", "items": { "$ref": "#/$defs/Pause" } },
+    "usageLimitHits": { "type": "array", "items": { "$ref": "#/$defs/UsageLimitHit" } }
+  },
+  "$defs": {
+    "FocusSession": {
+      "type": "object", "required": ["id", "groupIds", "startsAt", "endsAt", "strict"], "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" }, "name": { "type": ["string", "null"] },
+        "groupIds": { "type": "array", "items": { "type": "string" } },
+        "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
+        "strict": { "type": "boolean" }, "endedAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "Pause": {
+      "type": "object", "required": ["id", "groupIds", "startsAt", "endsAt"], "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" }, "groupIds": { "type": "array", "items": { "type": "string" } },
+        "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
+        "ruleId": { "type": ["string", "null"] }
+      }
+    },
+    "UsageLimitHit": {
+      "type": "object", "required": ["ruleId", "day"], "additionalProperties": false,
+      "properties": { "ruleId": { "type": "string" }, "day": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" } }
+    }
+  }
+}
