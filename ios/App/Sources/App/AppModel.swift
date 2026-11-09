@@ -269,16 +269,31 @@ final class AppModel {
 
     // MARK: Groups
 
-    func setSelection(_ selection: FamilyActivitySelection, for gid: GroupID) {
+    /// During a strict block a group may gain apps/sites but not lose any: shrinking the selection
+    /// would end the block early (strict rules, Deep Focus, and every server block).
+    @discardableResult
+    func setSelection(_ selection: FamilyActivitySelection, for gid: GroupID) -> Bool {
+        if wouldShrinkStrictGroup(gid, selection: selection) { lastError = Self.strictMessage; return false }
         platform.setSelection(selection, for: gid)
         selectionRevision += 1
         platform.reconcile(now: Date())
         refresh()
+        return true
+    }
+
+    private func wouldShrinkStrictGroup(_ gid: GroupID, selection: FamilyActivitySelection, domains: [String]? = nil) -> Bool {
+        guard groupStates[gid]?.strict == true else { return false }
+        let old = platform.selection(for: gid)
+        if let domains, let cur = allGroups.first(where: { $0.id == gid }), !Set(cur.webDomains).isSubset(of: Set(domains)) { return true }
+        return !old.applicationTokens.isSubset(of: selection.applicationTokens)
+            || !old.categoryTokens.isSubset(of: selection.categoryTokens)
+            || !old.webDomainTokens.isSubset(of: selection.webDomainTokens)
     }
 
     @discardableResult
     func saveGroup(id: GroupID?, name: String, colorHex: String?, domains: [String], selection: FamilyActivitySelection) -> GroupID? {
         let gid = id ?? TetherID.make("lgrp")
+        if wouldShrinkStrictGroup(gid, selection: selection, domains: domains) { lastError = Self.strictMessage; return nil }
         let ok = mutate { s in
             if let i = s.localGroups.firstIndex(where: { $0.id == gid }) {
                 s.localGroups[i].name = name; s.localGroups[i].colorHex = colorHex; s.localGroups[i].webDomains = domains
@@ -286,8 +301,7 @@ final class AppModel {
                 s.localGroups.append(BlockGroup(id: gid, name: name, colorHex: colorHex, webDomains: domains, source: .local))
             }
         }
-        guard ok else { return nil }
-        setSelection(selection, for: gid)
+        guard ok, setSelection(selection, for: gid) else { return nil }
         return gid
     }
 
