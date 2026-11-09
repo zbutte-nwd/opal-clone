@@ -99,12 +99,18 @@ export function RuleEditor({ groups, rule, onSubmit, onCancel, busy }: {
 
       <div className="row">
         <label>Action
-          <select value={action} onChange={(e) => setAction(e.target.value as Rule['action'])}>
+          <select value={action} onChange={(e) => {
+            const a = e.target.value as Rule['action'];
+            setAction(a);
+            if (a === 'allow' && strictness === 'guarded') setStrictness('flexible'); // guarded is block-only
+          }}>
             <option value="block">Block</option><option value="allow">Allow (exception)</option>
           </select></label>
         <label>Strictness
           <select value={strictness} onChange={(e) => setStrictness(e.target.value as Rule['strictness'])}>
-            <option value="flexible">Flexible (user can pause)</option><option value="strict">Strict (no pausing)</option>
+            <option value="flexible">Flexible (user can pause)</option>
+            <option value="guarded" disabled={action === 'allow'}>Guarded (pausable; locked on the phone while active)</option>
+            <option value="strict">Strict (no pausing)</option>
           </select></label>
         <label className="inline"><Switch label="Enabled" checked={enabled} onChange={setEnabled} /> Enabled</label>
       </div>

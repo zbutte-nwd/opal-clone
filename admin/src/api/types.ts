@@ -37,7 +37,8 @@ export type Trigger =
   | { type: 'manual'; active: boolean };
 
 export type RuleAction = 'block' | 'allow';
-export type Strictness = 'flexible' | 'strict';
+/** guarded = pausable, but the phone locks edits while it's active (block rules only; apps >= 0.2.0, older get flexible). */
+export type Strictness = 'flexible' | 'guarded' | 'strict';
 
 export interface Rule {
   id: string;
