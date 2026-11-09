@@ -1,10 +1,24 @@
 import SwiftUI
 
 struct StatusBanner: View {
-    enum Style { case ok, info, warning, error
-        var color: Color { switch self { case .ok: .green; case .info: .blue; case .warning: .orange; case .error: .red } }
-        var icon: String { switch self { case .ok: "checkmark.shield.fill"; case .info: "info.circle.fill"
-            case .warning: "exclamationmark.triangle.fill"; case .error: "xmark.octagon.fill" } }
+    enum Style {
+        case ok, info, warning, error
+        var color: Color {
+            switch self {
+            case .ok: return .green
+            case .info: return .blue
+            case .warning: return .orange
+            case .error: return .red
+            }
+        }
+        var icon: String {
+            switch self {
+            case .ok: return "checkmark.shield.fill"
+            case .info: return "info.circle.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            case .error: return "xmark.octagon.fill"
+            }
+        }
     }
     var style: Style
     var title: String

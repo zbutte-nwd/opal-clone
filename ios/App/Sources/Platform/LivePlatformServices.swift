@@ -1,5 +1,5 @@
 // LivePlatformServices.swift — the ONLY file that talks to TetherKit / TetherAPI directly.
-// Every call whose signature I could not confirm carries a `// VERIFY:` comment.
+// Signatures were reconciled against W2/W5 sources as of writing; remaining doubts carry `// VERIFY:`.
 
 import Foundation
 import UIKit
@@ -14,17 +14,14 @@ final class LivePlatformServices: PlatformServices {
     let stateStore: StateStore
 
     private let selections: SelectionStore
-    // VERIFY: AuthorizationManager / ProtectionController initialisers (W5). Assumed `.shared`-less plain inits.
-    private let authManager: AuthorizationManager
-    private let protection: ProtectionController
-    private var syncEngine: SyncEngine?
-    private var syncEngineKey: String?
+    private let authManager: AuthorizationManager        // @MainActor @Observable (TetherKit)
+    private let protection = ProtectionController.shared
+    private let sync = PlatformSync.shared
 
     init() {
         self.stateStore = StateStore(directory: AppGroup.containerURL)
         self.selections = SelectionStore.shared
-        self.authManager = AuthorizationManager()      // VERIFY: init signature / singleton
-        self.protection = ProtectionController()        // VERIFY: init signature / singleton
+        self.authManager = AuthorizationManager()
     }
 
     var defaultServerURL: URL? { AppGroup.defaultServerURL }
@@ -32,9 +29,7 @@ final class LivePlatformServices: PlatformServices {
     // MARK: Authorization
 
     var screenTimeAuth: ScreenTimeAuth {
-        // VERIFY: AuthorizationManager.status's type. Reading the system center directly is the
-        // well-known API and gives the same answer.
-        switch AuthorizationCenter.shared.authorizationStatus {
+        switch authManager.status {
         case .approved: return .approved
         case .denied: return .denied
         case .notDetermined: return .notDetermined
@@ -59,26 +54,23 @@ final class LivePlatformServices: PlatformServices {
     // MARK: Reconcile
 
     func reconcile(now: Date) {
-        _ = Reconciler.shared.reconcile(now: now)   // VERIFY: Reconciler.reconcile(now:) -> ReconcileResult (discardable?)
+        _ = Reconciler.shared.reconcile(now: now)
     }
 
     // MARK: Protection
 
     func enableProtection(lock: ProtectionLock, pin: String?) throws {
-        try protection.enable(lock: lock, pin: pin)   // VERIFY: signature `enable(lock:pin:) throws`
+        let mode = (try? stateStore.load().protection.authMode) ?? .individual
+        try protection.enable(lock: lock, pin: pin, authMode: mode)
     }
 
-    func disableProtection(pin: String?) throws {
-        try protection.disable(pin: pin)              // VERIFY: signature `disable(pin:) throws`
-    }
+    func disableProtection(pin: String?) throws { try protection.disable(pin: pin) }
 
     func disableProtectionAfterRemoteApproval(requestId: String) throws {
-        try protection.disableAfterRemoteApproval(requestId: requestId)   // VERIFY
+        try protection.disableAfterRemoteApproval(requestId: requestId)
     }
 
-    func changePIN(old: String, new: String) throws {
-        try protection.changePIN(old: old, new: new)  // VERIFY: label names
-    }
+    func changePIN(old: String, new: String) throws { try protection.changePIN(old: old, new: new) }
 
     // MARK: Server
 
@@ -89,48 +81,28 @@ final class LivePlatformServices: PlatformServices {
     }
 
     private func makeClient(baseURL: URL) -> APIClient {
-        APIClient(baseURL: baseURL, tokenProvider: { Keychain.deviceToken },
-                  appVersion: deviceInfo().appVersion)
+        APIClient(baseURL: baseURL, tokenProvider: { Keychain.deviceToken }, appVersion: deviceInfo().appVersion)
     }
 
-    /// Builds (and caches per base URL) a SyncEngine for the paired server. nil = not paired.
-    private func engine() -> SyncEngine? {
-        guard let server = (try? stateStore.load())?.server else { return nil }
-        let key = server.baseURL.absoluteString
-        if let e = syncEngine, syncEngineKey == key { return e }
-        // VERIFY: StateStore conforms to StateStoring (W2 says StateStore+StateStoring.swift provides it).
-        let e = SyncEngine(api: makeClient(baseURL: server.baseURL), store: stateStore,
-                           authorizationStatusProvider: { [weak self] in
-                               await MainActor.run {
-                                   switch self?.screenTimeAuth ?? .notDetermined {
-                                   case .approved: return .approved
-                                   case .denied: return .denied
-                                   case .notDetermined: return .notDetermined
-                                   }
-                               }
-                           },
-                           onBundleChanged: { [weak self] in
-                               await MainActor.run { self?.reconcile(now: Date()) }
-                           })
-        syncEngine = e; syncEngineKey = key
-        return e
+    private func requireClient() throws -> APIClient {
+        guard let server = (try? stateStore.load())?.server else { throw PlatformError.notPaired }
+        return makeClient(baseURL: server.baseURL)
     }
 
     func syncNow() async -> SyncSummary {
-        guard let engine = engine() else { return .notPaired }
-        let outcome = await engine.syncNow(reason: .manual)
-        return summarize(outcome)
+        guard sync.isPaired else { return .notPaired }
+        return summarize(await sync.syncNow(reason: .manual))
     }
 
     func handlePush(userInfo: [AnyHashable: Any]) async {
-        guard let engine = engine() else { return }
-        _ = await engine.handlePush(userInfo)
+        _ = await sync.handlePush(userInfo)
     }
 
     private func summarize(_ outcome: SyncOutcome) -> SyncSummary {
         let now = Date()
         switch outcome {
-        case .noChange, .updated, .unlockDecided: return SyncSummary(ok: true, message: nil, at: now)
+        case .noChange, .updated, .unlockDecided:
+            return SyncSummary(ok: true, message: nil, at: now)
         case .unauthorized:
             return SyncSummary(ok: false, message: "The server no longer recognises this device. Pair again.", at: nil)
         case .failed:
@@ -143,26 +115,16 @@ final class LivePlatformServices: PlatformServices {
             throw PlatformError.invalidInput("Enter the server address.")
         }
         guard let normalized = PairingLink.normalizeCode(code) else {
-            throw PlatformError.invalidInput("Pairing codes have 8 letters/numbers, like K7Q2-M9XD.")
+            throw PlatformError.invalidInput("Pairing codes have 8 letters or numbers, like K7Q2-M9XD.")
         }
-        let tmp = SyncEngine(api: makeClient(baseURL: server), store: stateStore, onBundleChanged: {})
-        let token = try await tmp.enroll(pairingCode: normalized, server: server, deviceInfo: deviceInfo())
-        Keychain.deviceToken = token
-        syncEngine = nil; syncEngineKey = nil
+        _ = try await sync.enroll(pairingCode: normalized, server: server, deviceInfo: deviceInfo())
     }
 
     func unpair() async {
-        if let server = (try? stateStore.load())?.server {
-            try? await makeClient(baseURL: server.baseURL).unpair()   // best effort
-        }
+        if let client = try? requireClient() { try? await client.unpair() }   // best effort
         Keychain.deviceToken = nil
         _ = try? stateStore.update { $0.server = nil }
-        syncEngine = nil; syncEngineKey = nil
-    }
-
-    private func requireClient() throws -> APIClient {
-        guard let server = (try? stateStore.load())?.server else { throw PlatformError.notPaired }
-        return makeClient(baseURL: server.baseURL)
+        sync.reset()
     }
 
     func createUnlockRequest(kind: UnlockKind, groupIds: [GroupID], minutes: Int?, reason: String?) async throws -> String {

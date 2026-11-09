@@ -58,8 +58,9 @@ export async function harness(over: Partial<Config> = {}): Promise<Harness> {
 }
 
 const schema = JSON.parse(readFileSync(new URL('../../contracts/policy-bundle.schema.json', import.meta.url), 'utf8'));
-const ajv = new Ajv2020({ strict: false, allErrors: true });
-addFormats(ajv);
+const Ajv: any = (Ajv2020 as any).default ?? Ajv2020;
+const ajv = new Ajv({ strict: false, allErrors: true });
+((addFormats as any).default ?? addFormats)(ajv);
 const validate = ajv.compile(schema);
 export function validateBundle(b: unknown): string | null {
   return validate(b) ? null : ajv.errorsText(validate.errors);

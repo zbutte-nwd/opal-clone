@@ -1,0 +1,447 @@
+openapi: 3.1.0
+info:
+  title: Tether API
+  version: 1.0.0
+  description: |
+    REST API for the Tether focus app server. Mirrors contracts/api.md.
+    Timestamps are RFC 3339 UTC without fractional seconds. Errors use `{error:{code,message}}`.
+servers:
+  - url: /
+security:
+  - adminJwt: []
+tags:
+  - { name: auth }
+  - { name: devices }
+  - { name: policy }
+  - { name: unlock }
+  - { name: device-api, description: Endpoints used by the iOS app (device token) }
+  - { name: system }
+
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      security: []
+      summary: Health check
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [ok, version], properties: { ok: { type: boolean }, version: { type: string } } } } } }
+
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      security: []
+      summary: Create an admin account
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RegisterRequest' } } } }
+      responses:
+        '201': { $ref: '#/components/responses/AuthResponse' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Log in
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/auth/me:
+    get:
+      tags: [auth]
+      summary: Current admin (session JWT only)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { admin: { $ref: '#/components/schemas/Admin' } } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /v1/pairing-codes:
+    post:
+      tags: [devices]
+      summary: Create a single-use 10-minute pairing code
+      requestBody: { content: { application/json: { schema: { type: object, properties: { deviceName: { type: string } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/PairingCode' } } } }
+  /v1/devices:
+    get:
+      tags: [devices]
+      summary: List devices
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { devices: { type: array, items: { $ref: '#/components/schemas/Device' } } } } } } }
+  /v1/devices/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [devices]
+      summary: Device detail with server-evaluated currentState
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Device' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [devices]
+      summary: Rename device
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Device' } } } }
+    delete:
+      tags: [devices]
+      summary: Unpair device
+      responses: { '204': { description: Deleted } }
+  /v1/devices/{id}/push:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [devices]
+      summary: Force a policy push (debug)
+      responses:
+        '200': { description: Sent, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, hasPushToken: { type: boolean } } } } } }
+  /v1/devices/{id}/events:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [devices]
+      summary: Device events, newest first
+      parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { events: { type: array, items: { $ref: '#/components/schemas/DeviceEvent' } } } } } } }
+
+  /v1/groups:
+    get:
+      tags: [policy]
+      summary: List groups
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { groups: { type: array, items: { $ref: '#/components/schemas/Group' } } } } } } } }
+    post:
+      tags: [policy]
+      summary: Create group
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GroupInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Group' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/groups/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [policy]
+      summary: Update group (partial)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/GroupInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Group' } } } } }
+    delete:
+      tags: [policy]
+      summary: Delete group (also removed from rules/overrides)
+      responses: { '204': { description: Deleted } }
+
+  /v1/rules:
+    get:
+      tags: [policy]
+      summary: List rules
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { rules: { type: array, items: { $ref: '../contracts/policy-bundle.schema.json#/$defs/Rule' } } } } } } } }
+    post:
+      tags: [policy]
+      summary: Create rule
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RuleInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '../contracts/policy-bundle.schema.json#/$defs/Rule' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/rules/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [policy]
+      summary: Update rule (partial)
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/RuleInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '../contracts/policy-bundle.schema.json#/$defs/Rule' } } } } }
+    delete:
+      tags: [policy]
+      summary: Delete rule
+      responses: { '204': { description: Deleted } }
+  /v1/rules/{id}/toggle:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [policy]
+      summary: Activate/deactivate a manual-trigger rule
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [active], properties: { active: { type: boolean } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '../contracts/policy-bundle.schema.json#/$defs/Rule' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/overrides:
+    get:
+      tags: [policy]
+      summary: List overrides
+      parameters: [{ name: active, in: query, schema: { type: string, enum: ['true'] } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { overrides: { type: array, items: { $ref: '#/components/schemas/Override' } } } } } } } }
+    post:
+      tags: [policy]
+      summary: Create override (open-ended if neither endsAt nor durationMinutes)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OverrideInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Override' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/overrides/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    delete:
+      tags: [policy]
+      summary: Cancel override
+      responses: { '204': { description: Cancelled } }
+  /v1/actions/block:
+    post:
+      tags: [policy]
+      summary: Block groups now (automation)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ActionInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Override' } } } } }
+  /v1/actions/unblock:
+    post:
+      tags: [policy]
+      summary: Unblock groups now (automation)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ActionInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Override' } } } } }
+  /v1/settings:
+    get:
+      tags: [policy]
+      summary: Account settings
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } } }
+    patch:
+      tags: [policy]
+      summary: Update settings
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } } }
+
+  /v1/unlock-requests:
+    get:
+      tags: [unlock]
+      summary: List unlock requests (all statuses unless filtered)
+      parameters: [{ name: status, in: query, schema: { enum: [pending, approved, denied, expired] } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { requests: { type: array, items: { $ref: '#/components/schemas/UnlockRequest' } } } } } } } }
+  /v1/unlock-requests/{id}/approve:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [unlock]
+      summary: Approve (groups -> unblock override for that device)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { minutes: { type: integer, minimum: 1, maximum: 1440 } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UnlockRequest' } } } }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/unlock-requests/{id}/deny:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [unlock]
+      summary: Deny
+      requestBody: { content: { application/json: { schema: { type: object, properties: { note: { type: string } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UnlockRequest' } } } }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/audit-log:
+    get:
+      tags: [system]
+      summary: Recent audit entries
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 100 } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { entries: { type: array, items: { type: object } } } } } } } }
+
+  /v1/api-keys:
+    get:
+      tags: [auth]
+      summary: List API keys (session JWT only)
+      responses: { '200': { description: OK, content: { application/json: { schema: { type: object, properties: { keys: { type: array, items: { $ref: '#/components/schemas/ApiKey' } } } } } } } }
+    post:
+      tags: [auth]
+      summary: Create API key; the key is shown once
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string } } } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiKey' }, { type: object, required: [key], properties: { key: { type: string, description: tk_live_… } } }] } } } } }
+  /v1/api-keys/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    delete:
+      tags: [auth]
+      summary: Revoke API key
+      responses: { '204': { description: Deleted } }
+
+  /v1/devices/enroll:
+    post:
+      tags: [device-api]
+      security: []
+      summary: Enroll a device with a pairing code
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [pairingCode, name], properties: { pairingCode: { type: string }, name: { type: string }, model: { type: string }, osVersion: { type: string }, appVersion: { type: string } } } } } }
+      responses:
+        '201': { description: Enrolled, content: { application/json: { schema: { type: object, required: [deviceId, deviceToken], properties: { deviceId: { type: string }, deviceToken: { type: string, description: td_… }, baseURL: { type: string, description: server origin } } } } } }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /v1/devices/me/push-token:
+    put:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Register APNs token
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token, environment], properties: { token: { type: string }, environment: { enum: [sandbox, production] } } } } } }
+      responses: { '204': { description: Stored } }
+  /v1/devices/me/policy:
+    get:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Fetch the policy bundle (ETag = "<version>")
+      parameters: [{ name: If-None-Match, in: header, schema: { type: string } }]
+      responses:
+        '200': { description: Bundle, headers: { ETag: { schema: { type: string } } }, content: { application/json: { schema: { $ref: '../contracts/policy-bundle.schema.json' } } } }
+        '304': { description: Not modified }
+  /v1/devices/me/ack:
+    post:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Acknowledge an applied version
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, appliedAt, blockedGroupIds, authorizationStatus], properties: { version: { type: integer }, appliedAt: { type: string, format: date-time }, blockedGroupIds: { type: array, items: { type: string } }, authorizationStatus: { enum: [approved, denied, notDetermined] } } } } } }
+      responses: { '204': { description: Stored } }
+  /v1/devices/me/events:
+    post:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Upload events (idempotent on event id)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [events], properties: { events: { type: array, maxItems: 200, items: { type: object, required: [id, type, occurredAt], properties: { id: { type: string }, type: { type: string }, occurredAt: { type: string, format: date-time }, data: { type: object } } } } } } } } }
+      responses: { '202': { description: Accepted } }
+  /v1/devices/me/unlock-requests:
+    post:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Ask the admin to unlock groups or disable protection
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { enum: [groups, disableProtection] }, groupIds: { type: array, items: { type: string } }, minutes: { type: integer }, reason: { type: string } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/UnlockRequest' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+  /v1/devices/me/unlock-requests/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Poll an unlock request
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UnlockRequest' } } } } }
+  /v1/devices/me:
+    delete:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Device-initiated unpair (only when protection is disabled)
+      responses:
+        '204': { description: Unpaired }
+        '403': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    adminJwt: { type: http, scheme: bearer, bearerFormat: JWT, description: Session JWT from /auth/login, or an API key (tk_live_…) on all policy endpoints }
+    apiKey: { type: http, scheme: bearer, description: 'tk_live_… API key' }
+    deviceToken: { type: http, scheme: bearer, description: 'td_… device token' }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    Error:
+      description: Error envelope
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    AuthResponse:
+      description: Admin + session token
+      content: { application/json: { schema: { type: object, required: [admin, token], properties: { admin: { $ref: '#/components/schemas/Admin' }, token: { type: string } } } } }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { enum: [bad_request, unauthorized, forbidden, not_found, conflict, validation_failed, rate_limited, internal] }
+            message: { type: string }
+    Admin: { type: object, required: [id, email, name], properties: { id: { type: string }, email: { type: string }, name: { type: string } } }
+    RegisterRequest: { type: object, required: [email, password, name], properties: { email: { type: string, format: email }, password: { type: string, minLength: 8 }, name: { type: string } } }
+    LoginRequest: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string } } }
+    PairingCode: { type: object, required: [code, expiresAt, qrPayload], properties: { code: { type: string, example: K7Q2-M9XD }, expiresAt: { type: string, format: date-time }, qrPayload: { type: string, description: 'tether://pair?code=…&server=<origin>' } } }
+    GroupState:
+      type: object
+      required: [groupId, blocked, strict, reason]
+      properties:
+        groupId: { type: string }
+        blocked: { type: boolean }
+        strict: { type: boolean }
+        reason: { type: object, required: [kind, id], properties: { kind: { enum: [override, session, rule, pause, none] }, id: { type: [string, 'null'] } } }
+    Device:
+      type: object
+      required: [id, name, status, appliedVersion, latestVersion, currentState, reportedBlockedGroupIds]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        model: { type: [string, 'null'] }
+        osVersion: { type: [string, 'null'] }
+        appVersion: { type: [string, 'null'] }
+        status: { enum: [online, idle, stale, revoked, pending] }
+        lastSeenAt: { type: [string, 'null'], format: date-time }
+        appliedVersion: { type: integer }
+        latestVersion: { type: integer }
+        authorizationStatus: { enum: [approved, denied, notDetermined, null] }
+        currentState: { type: array, items: { $ref: '#/components/schemas/GroupState' } }
+        reportedBlockedGroupIds: { type: array, items: { type: string } }
+        blockedGroupIds: { type: array, items: { type: string } }
+        hasPushToken: { type: boolean }
+        protectionEnabled: { type: [boolean, 'null'] }
+        pairedAt: { type: string, format: date-time }
+    DeviceEvent: { type: object, required: [id, type, occurredAt], properties: { id: { type: string }, type: { type: string }, occurredAt: { type: string, format: date-time }, data: { type: [object, 'null'] }, receivedAt: { type: string, format: date-time } } }
+    Group:
+      allOf:
+        - $ref: '../contracts/policy-bundle.schema.json#/$defs/BlockGroup'
+        - type: object
+          properties: { createdAt: { type: string, format: date-time }, updatedAt: { type: string, format: date-time } }
+    GroupInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        colorHex: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        webDomains: { type: array, maxItems: 50, items: { type: string, pattern: '^[a-z0-9.-]+\.[a-z]{2,}$' } }
+    RuleInput:
+      type: object
+      required: [name, groupIds, action, trigger]
+      properties:
+        name: { type: string }
+        groupIds: { type: array, minItems: 1, items: { type: string } }
+        enabled: { type: boolean, default: true }
+        action: { enum: [block, allow] }
+        trigger: { $ref: '../contracts/policy-bundle.schema.json#/$defs/Trigger' }
+        strictness: { enum: [flexible, strict], default: flexible }
+        priority: { type: integer, default: 0 }
+        maxPausesPerDay: { type: [integer, 'null'] }
+    Override:
+      allOf:
+        - $ref: '../contracts/policy-bundle.schema.json#/$defs/Override'
+        - type: object
+          properties: { deviceIds: { type: [array, 'null'], items: { type: string }, description: null = all devices } }
+    OverrideInput:
+      type: object
+      required: [groupIds, action]
+      properties:
+        groupIds: { type: array, minItems: 1, items: { type: string } }
+        action: { enum: [block, unblock] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        durationMinutes: { type: integer, minimum: 1 }
+        reason: { type: string, maxLength: 200 }
+        deviceIds: { type: array, items: { type: string } }
+    ActionInput:
+      type: object
+      required: [groupIds]
+      properties:
+        groupIds: { type: array, minItems: 1, items: { type: string } }
+        durationMinutes: { type: integer, minimum: 1 }
+        reason: { type: string }
+        deviceIds: { type: array, items: { type: string } }
+    Settings:
+      type: object
+      properties:
+        protectionLock: { enum: [partnerPIN, remoteApproval, osOnly] }
+        allowLocalRules: { type: boolean }
+        denyAppRemoval: { type: boolean }
+        timeZone: { type: [string, 'null'], description: IANA zone; null = device local }
+    UnlockRequest:
+      type: object
+      required: [id, deviceId, kind, groupIds, status, createdAt]
+      properties:
+        id: { type: string }
+        deviceId: { type: string }
+        deviceName: { type: [string, 'null'] }
+        kind: { enum: [groups, disableProtection] }
+        groupIds: { type: array, items: { type: string } }
+        minutes: { type: [integer, 'null'] }
+        reason: { type: [string, 'null'] }
+        status: { enum: [pending, approved, denied, expired] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        overrideId: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+    ApiKey: { type: object, required: [id, name, prefix, createdAt], properties: { id: { type: string }, name: { type: string }, prefix: { type: string }, createdAt: { type: string, format: date-time }, lastUsedAt: { type: [string, 'null'], format: date-time } } }

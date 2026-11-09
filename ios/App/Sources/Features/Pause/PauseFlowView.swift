@@ -84,7 +84,7 @@ struct PauseFlowView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Wait \(secondsLeft) seconds")
-            Text(breathing ? "Breathe in… and out" : "").font(.callout).foregroundStyle(.secondary).hidden(false)
+            Text("Breathe in… and out").font(.callout).foregroundStyle(.secondary).opacity(breathing ? 1 : 0)
         }
         .padding(.top, 8)
     }
@@ -145,11 +145,6 @@ struct PauseFlowView: View {
             }
         }
     }
-}
-
-private extension View {
-    /// Keeps layout stable when text is empty.
-    func hidden(_ flag: Bool) -> some View { self.opacity(flag ? 0 : 1) }
 }
 
 #Preview("Pause") {

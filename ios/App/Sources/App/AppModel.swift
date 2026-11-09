@@ -124,17 +124,12 @@ final class AppModel {
         screenTimeAuth = platform.screenTimeAuth
         let input = state.engineInput
         let tz = PolicyEngine.effectiveTimeZone(input, deviceTimeZone: .current)
-        groupStates = PolicyEngine.evaluate(input, at: now, timeZone: tz)
-
+        let evaluated = PolicyEngine.evaluate(input, at: now, timeZone: tz)
         let transitions = TransitionPlanner.nextTransitions(input, after: now, timeZone: tz, horizon: 7 * 86400, limit: 16)
-        var untils: [GroupID: Date] = [:]
-        for (gid, gs) in groupStates where gs.blocked {
-            if let u = gs.until { untils[gid] = u; continue }
-            if let t = transitions.first(where: { PolicyEngine.evaluate(input, at: $0, timeZone: tz)[gid]?.blocked != true }) {
-                untils[gid] = t
-            }
-        }
-        untilByGroup = untils
+        groupStates = evaluated
+        // `until` (next change per group) is filled in by TransitionPlanner.annotateUntil.
+        let annotated = TransitionPlanner.annotateUntil(evaluated, input: input, now: now, timeZone: tz)
+        untilByGroup = annotated.compactMapValues { $0.blocked ? $0.until : nil }
 
         nextBlock = nil
         for t in transitions {
@@ -159,10 +154,10 @@ final class AppModel {
 
     var blockedItems: [BlockedItem] {
         allGroups.compactMap { g in
-            guard let gs = groupStates[g.id], gs.blocked else { return nil }
-            return BlockedItem(group: g, state: gs,
-                               subtitle: CoreBridge.reasonSubtitle(GroupState(groupId: gs.groupId, blocked: true, strict: gs.strict, reason: gs.reason, until: untilByGroup[g.id]), in: state, now: now),
-                               until: untilByGroup[g.id])
+            guard var gs = groupStates[g.id], gs.blocked else { return nil }
+            gs.until = untilByGroup[g.id]
+            let copy = ShieldCopy.make(groupId: g.id, state: gs, input: input, now: now, timeZone: timeZone)
+            return BlockedItem(group: g, state: gs, subtitle: copy.subtitle + (gs.strict ? " · strict" : ""), until: gs.until)
         }
     }
 
@@ -172,7 +167,7 @@ final class AppModel {
             .min { $0.endsAt < $1.endsAt }
     }
 
-    var stats: FocusStatsSummary { CoreBridge.focusStats(state.sessions, now: now, timeZone: timeZone) }
+    var stats: FocusStats { FocusStats.compute(state: state, now: now, timeZone: timeZone) }
 
     /// Server groups with no apps mapped on this device yet (SelectionStore) and no domains of their own.
     var unmappedServerGroups: [BlockGroup] {
@@ -198,15 +193,12 @@ final class AppModel {
     // MARK: Mutation plumbing
 
     @discardableResult
-    private func mutate(event: DeviceEvent? = nil, _ body: (inout PersistedState) throws -> Void) -> Bool {
+    private func mutate(sync: Bool = false, _ body: (inout PersistedState) throws -> Void) -> Bool {
         do {
-            _ = try platform.stateStore.update { s in
-                try body(&s)
-                if let event { s.pendingEvents.append(event) }
-            }
+            _ = try platform.stateStore.update { s in try body(&s) }
             platform.reconcile(now: Date())
             refresh()
-            if event != nil { Task { await syncNow() } }
+            if sync { Task { await syncNow() } }
             return true
         } catch {
             lastError = error.localizedDescription
@@ -337,35 +329,30 @@ final class AppModel {
 
     // MARK: Sessions & pauses
 
+    /// StateMutations enqueue the matching DeviceEvent themselves (sessionStarted / sessionEnded / pauseStarted).
     @discardableResult
     func startSession(name: String?, groupIds: [GroupID], minutes: Int, strict: Bool) -> Bool {
         guard !groupIds.isEmpty, minutes > 0 else { lastError = "Pick at least one group and a duration."; return false }
-        let start = Date()
-        let s = FocusSession(id: TetherID.make("ses"), name: (name?.isEmpty ?? true) ? nil : name, groupIds: groupIds,
-                             startsAt: start, endsAt: start.addingTimeInterval(TimeInterval(minutes) * 60), strict: strict)
-        let ev = DeviceEvent(type: .sessionStarted, data: ["sessionId": s.id, "minutes": String(minutes), "strict": strict ? "true" : "false"])
-        return mutate(event: ev) { $0.sessions.append(s) }
-    }
-
-    @discardableResult
-    func endSession(_ id: String) -> Bool {
-        guard let s = state.sessions.first(where: { $0.id == id }) else { return false }
-        if s.strict { lastError = "This is a Deep Focus session. It can't be ended early."; return false }
-        let ev = DeviceEvent(type: .sessionEnded, data: ["sessionId": id, "early": "true"])
-        return mutate(event: ev) { st in
-            if let i = st.sessions.firstIndex(where: { $0.id == id }) { st.sessions[i].endedAt = Date() }
+        let trimmed = name?.trimmingCharacters(in: .whitespaces)
+        return mutate(sync: true) {
+            $0.startSession(groupIds: groupIds, duration: TimeInterval(minutes) * 60, strict: strict,
+                            name: (trimmed?.isEmpty ?? true) ? nil : trimmed)
         }
     }
 
     @discardableResult
+    func endSession(_ id: String) -> Bool {
+        if state.sessions.first(where: { $0.id == id })?.strict == true {
+            lastError = "This is a Deep Focus session. It can't be ended early."
+            return false
+        }
+        return mutate(sync: true) { try $0.endSession(id: id) }
+    }
+
+    @discardableResult
     func startPause(groupId: GroupID, minutes: Int) -> Bool {
-        guard case .allowed = pauseEligibility(groupId) else { lastError = "A pause isn't allowed for this group right now."; return false }
-        let start = Date()
-        let p = Pause(id: TetherID.make("pau"), groupIds: [groupId], startsAt: start,
-                      endsAt: start.addingTimeInterval(TimeInterval(minutes) * 60),
-                      ruleId: groupStates[groupId].flatMap(CoreBridge.ruleId(of:)))
-        let ev = DeviceEvent(type: .pauseStarted, data: ["pauseId": p.id, "groupId": groupId, "minutes": String(minutes)])
-        return mutate(event: ev) { $0.pauses.append(p) }
+        let tz = timeZone
+        return mutate(sync: true) { try $0.startPause(groupId: groupId, minutes: minutes, timeZone: tz) }
     }
 
     // MARK: Server
