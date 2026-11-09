@@ -27,7 +27,7 @@ Each workstream **owns** its directories; don't edit outside them (except append
 
 | ID | Workstream | Owns | Verify on Linux | Status |
 |---|---|---|---|---|
-| W1 | **Engine** — `PolicyEngine`, `ScheduleMath`, `TransitionPlanner`, `StateStore`, `PINHasher`, history/stats helpers | `ios/Packages/TetherCore/Sources/TetherCore/**` (not the JSON shape in Models.swift), `Tests/TetherCoreTests/**` | `swift test` — all 61 vectors pass | ⬜ |
+| W1 | **Engine** — `PolicyEngine`, `ScheduleMath`, `TransitionPlanner`, `StateStore`, `PINHasher`, history/stats helpers | `ios/Packages/TetherCore/Sources/TetherCore/**` (not the JSON shape in Models.swift), `Tests/TetherCoreTests/**` | `swift test` — all 61 vectors pass | ✅ |
 | W2 | **API client** — `APIClient`, `SyncEngine`, `PushPayload`, backoff | `Sources/TetherAPI/**`, `Tests/TetherAPITests/**` | `swift test` with URLProtocol stubs | ✅ |
 | W3 | **Server** — Fastify API per `contracts/api.md`, SQLite, APNs, TS engine port, OpenAPI | `server/**` | `npm test` (incl. engine vectors), `npm run typecheck` | ⬜ |
 | W4 | **Admin dashboard** — React + Vite | `admin/**` | `npm run build`, `npm test` | ✅ |
@@ -114,3 +114,4 @@ Record results in `docs/reviews/M1-spikes.md` and update `PLATFORM_CONSTRAINTS.m
 - [ ] (product) Final app name / bundle prefix — currently "Tether", `com.newwestsite`.
 - [ ] (product) Hosting for the server (Fly.io suggested: SQLite volume + single machine).
 - [ ] (product) Does the partner PIN default to "same as Screen Time passcode" in copy, or do we recommend a different secret?
+- [ ] (W1) `StateStore.update` prunes on every write by default (`pruneOnUpdate: true`, 7-day sessions/pauses, 2-day usage hits, 500 events); tests that persist old fixed-date sessions should pass `pruneOnUpdate: false`.
