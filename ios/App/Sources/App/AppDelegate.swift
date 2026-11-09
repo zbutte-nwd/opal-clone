@@ -29,17 +29,22 @@ final class AppEnvironment {
 /// Carries a non-Sendable payload (push userInfo) into a main-actor Task.
 struct UncheckedBox<T>: @unchecked Sendable { let value: T }
 
+/// `UIApplicationDelegate` is `@MainActor`, so this class is main-actor isolated. The
+/// `UNUserNotificationCenterDelegate` callbacks and the BGTask launch handler are NOT
+/// main-actor requirements (the system may call them on a background queue), so they are
+/// `nonisolated` and hop to the main actor explicitly.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    static let refreshTaskId = "tether.refresh"
+    nonisolated static let refreshTaskId = "tether.refresh"
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         NotificationRouter.registerCategories()   // pause category used by the shield-action notification
-        // BGTask handlers must be registered before launch finishes.
+        // BGTask handlers must be registered before launch finishes. `using: nil` -> the handler
+        // runs on a background queue, hence the nonisolated static helper.
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskId, using: nil) { task in
             guard let task = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
-            Self.handleRefresh(task)
+            AppDelegate.handleRefresh(task)
         }
         Self.scheduleRefresh()
         application.registerForRemoteNotifications()   // silent pushes need no user permission
@@ -60,42 +65,45 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         let box = UncheckedBox(value: userInfo)
+        let done = UncheckedBox(value: completionHandler)
         Task { @MainActor in
             await AppEnvironment.shared.model.handlePush(userInfo: box.value)
-            completionHandler(.newData)
+            done.value(.newData)
         }
     }
 
-    // MARK: Notification center
+    // MARK: Notification center (completion-handler variants only; do not also add the async ones)
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list, .sound])
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
-                                withCompletionHandler completionHandler: @escaping () -> Void) {
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
         // The shield-action extension / NSE put a deep link in userInfo["url"] (e.g. tether://pause?group=…).
-        let urlString = response.notification.request.content.userInfo["url"] as? String
+        let urlString = response.notification.request.content.userInfo[NotificationRouter.urlKey] as? String
+        let done = UncheckedBox(value: completionHandler)
         Task { @MainActor in
             if let urlString { AppEnvironment.shared.router.handle(urlString: urlString) }
-            completionHandler()
+            done.value()
         }
     }
 
     // MARK: Background refresh
 
-    static func scheduleRefresh() {
+    nonisolated static func scheduleRefresh() {
         let req = BGAppRefreshTaskRequest(identifier: refreshTaskId)
         req.earliestBeginDate = Date(timeIntervalSinceNow: 60 * 60)
         try? BGTaskScheduler.shared.submit(req)
     }
 
-    private static func handleRefresh(_ task: BGAppRefreshTask) {
+    private nonisolated static func handleRefresh(_ task: BGAppRefreshTask) {
         scheduleRefresh()
+        let box = UncheckedBox(value: task)
         let work = Task { @MainActor in
             await AppEnvironment.shared.model.backgroundRefresh()
-            task.setTaskCompleted(success: true)
+            box.value.setTaskCompleted(success: !Task.isCancelled)
         }
         task.expirationHandler = { work.cancel() }
     }

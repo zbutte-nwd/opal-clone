@@ -37,7 +37,8 @@ class TetherShieldConfigurationExtension: ShieldConfigurationDataSource {
         // "Unlock" only for non-strict blocks with a known group (the pause flow needs the group id).
         let allowsUnlock = (entry != nil) && !(entry?.strict ?? true)
 
-        // VERIFY: ShieldConfiguration.init parameter labels/order against the iOS 17 SDK.
+        // W8-audited: labels/order match `ShieldConfiguration.init(backgroundBlurStyle:backgroundColor:icon:
+        // title:subtitle:primaryButtonLabel:primaryButtonBackgroundColor:secondaryButtonLabel:)` (all optional).
         return ShieldConfiguration(
             backgroundBlurStyle: .systemUltraThinMaterial,
             backgroundColor: UIColor.systemBackground.withAlphaComponent(0.6),

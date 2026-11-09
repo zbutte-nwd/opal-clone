@@ -75,7 +75,10 @@ public final class PlatformSync: @unchecked Sendable {
         reset()
         let bootstrap = Self.makeEngine(baseURL: server)
         let token = try await bootstrap.enroll(pairingCode: pairingCode, server: server, deviceInfo: deviceInfo)
-        Keychain.deviceToken = token
+        // Throwing write (not the `deviceToken` setter, which swallows errors): a missing
+        // keychain-access-groups entitlement (-34018) must surface as a pairing error instead of
+        // a silently unpaired device that later reports "couldn't reach the server".
+        try Keychain.setString(token, account: Keychain.Account.deviceToken)
         reset()
         return await syncNow(reason: .enrollment)
     }

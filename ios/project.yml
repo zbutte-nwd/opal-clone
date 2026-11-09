@@ -21,7 +21,7 @@ configFiles:
 
 settings:
   base:
-    SWIFT_VERSION: "5.10"
+    SWIFT_VERSION: "5.0"            # Xcode accepts 4.0, 4.2, 5.0, 6.0 only ("5.10" is rejected); 5.0 = Swift 5 language mode
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES

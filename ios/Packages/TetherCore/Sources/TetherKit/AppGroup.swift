@@ -33,11 +33,19 @@ public enum AppGroup {
         if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier) {
             return url
         }
+        _ = warnUnprovisionedOnce
         let fallback = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("TetherFallbackGroup", isDirectory: true)
         try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
         return fallback
     }
+
+    /// Logged once per process: without the App Group every target silently gets its OWN
+    /// directory, so the Monitor/Shield/NSE extensions never see the app's state (first thing to
+    /// check on a first device build when shields "do nothing").
+    private static let warnUnprovisionedOnce: Void = {
+        TLog.reconcile.fault("App Group \(identifier) is not provisioned for this target; using a private fallback directory")
+    }()
 
     /// True when the real App Group container is available.
     public static var isProvisioned: Bool {

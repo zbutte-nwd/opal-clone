@@ -12,7 +12,16 @@ class TetherMonitorExtension: DeviceActivityMonitor {
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
-        Reconciler.shared.reconcile(now: Date())
+        // A one-shot `tether.t.<epoch>` wake exists to apply the state change AT that instant.
+        // If the OS delivers it a moment early, evaluate at the transition itself; otherwise the
+        // engine would still see the old state, the transition would stay "in the future", and the
+        // unchanged activity would not be re-registered -> the change would be missed.
+        var now = Date()
+        if let t = ActivityScheduler.transitionDate(fromActivity: activity.rawValue), t > now,
+           t.timeIntervalSince(now) < 120 {
+            now = t
+        }
+        Reconciler.shared.reconcile(now: now)
     }
 
     override func intervalDidEnd(for activity: DeviceActivityName) {

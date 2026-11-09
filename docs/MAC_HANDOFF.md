@@ -42,14 +42,19 @@ App Group for you.
 ## 2. Compile & fix (M2)
 
 1. Build `TetherCore` package scheme first (it already passes on Linux).
-2. Build the `Tether` scheme for "Any iOS Device". Expect compile errors in
+2. Build the `Tether` scheme for "Any iOS Device". Most likely first errors (from the
+   W8 audit): SwiftUI result-builder inference in long view bodies, `Label(token)`
+   overloads, `DeviceActivityEvent(... includesPastActivity:)` label, Report extension
+   embedding (`Tether.app/Extensions/TetherReport.appex`). Expect compile errors in
    `Sources/TetherKit`, `ios/Extensions/*`, `ios/App/*` — these were written blind.
    Fix them **in place**, preserving the public interfaces in `ARCHITECTURE.md §8`
    where possible. Start with `docs/reviews/W8-apple-api-audit.md`, which lists the
    known suspicious API usages and every `// VERIFY:` comment.
 3. Run the app in the Simulator with `TETHER_PLATFORM_STUB=1` (scheme env var) to click
    through every screen without FamilyControls.
-4. Keep `swift test` green on Linux-compatible targets — don't let Apple-only imports
+4. When the real compiler disagrees with a shim in `tools/linux-ios-typecheck/Sources/<Framework>/Shim.swift`,
+   fix the shim too, so Linux agents keep an accurate type-checker.
+5. Keep `swift test` green on Linux-compatible targets — don't let Apple-only imports
    leak into `TetherCore` / `TetherAPI` (CI runs them on Linux).
 
 ## 3. Spikes on device (M1) — do these before polishing anything
@@ -104,5 +109,7 @@ See the status column in `docs/BUILD_PLAN.md`; the commit log has detail. Summar
 | `TetherAPI` (client, sync, push parsing) | ✅ `swift test` with stubbed URLProtocol |
 | `server/` | ✅ `npm test` (incl. engine vectors + schema validation of emitted bundles) |
 | `admin/` | ✅ `npm run build && npm test` |
-| `TetherKit`, extensions, app UI | ⚠️ written blind + audited; **needs first compile** |
+| cross-stack e2e (server ⇄ device API ⇄ Swift engine) | ✅ `make e2e` |
+| `TetherKit`, 4 extensions, app platform/model layer | ⚠️ type-checked on Linux against SDK **shims** (`make typecheck-ios-linux`) + audited; **needs real compile** |
+| SwiftUI views (24 files), Report extension | ⚠️ syntax-checked + hand-audited only; expect result-builder errors |
 | `ios/project.yml`, plists, entitlements | ⚠️ syntax-validated; needs `xcodegen generate` |

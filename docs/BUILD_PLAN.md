@@ -12,7 +12,8 @@ server together.
 |---|---|---|---|
 | P0 | cloud (Linux) | Docs, contract, JSON schemas, 61 golden engine vectors + Python reference engine, Swift models, package skeleton | ✅ done |
 | P1 | cloud (Linux) | Workstreams W1–W7 in parallel (below) | see table |
-| P2 | cloud (Linux) | W8: audit all Apple-framework Swift (can't be compiled on Linux) against real SDK signatures | see table |
+| P2 | cloud (Linux) | W8: audit all Apple-framework Swift (can't be compiled on Linux) against real SDK signatures | ✅ |
+| P3 | cloud (Linux) | Integration: cross-stack e2e smoke test (`make e2e`), device time zone on ack, Linux iOS type-check harness (`make typecheck-ios-linux`), placeholder app icon | ✅ |
 | M0 | **Mac** | Toolchain + signing setup (`docs/MAC_HANDOFF.md`) | ⬜ |
 | M1 | **Mac + iPhone** | Feasibility spikes S1–S6 | ⬜ |
 | M2 | **Mac** | Generate Xcode project, compile all targets, fix errors, unit tests on iOS sim | ⬜ |
@@ -34,7 +35,7 @@ Each workstream **owns** its directories; don't edit outside them (except append
 | W5 | **iOS platform** — `TetherKit` (Reconciler, ShieldApplier, ActivityScheduler, AuthorizationManager, SelectionStore, ProtectionController, Keychain, AppGroup) + all 5 extensions | `Sources/TetherKit/**`, `ios/Extensions/**` | Linux build still passes (all Apple code behind `#if canImport(ManagedSettings)`); W8 audit | 🟡 written, needs Mac compile |
 | W6 | **iOS app UI** — SwiftUI app, onboarding, groups, rules, sessions, pause, pairing, settings | `ios/App/**` | W8 audit; compiles on Mac in M2 | 🟡 written, needs Mac compile |
 | W7 | **Project & infra** — XcodeGen `project.yml`, Info.plists, entitlements, xcconfig, privacy manifest, CI, scripts, Makefile | `ios/project.yml`, `ios/Config/**`, `.github/**`, `scripts/**`, `Makefile` | `python3 -c yaml.safe_load`, `actionlint` if available, scripts `bash -n` | ✅ |
-| W8 | **Apple API audit** (after W5/W6) | review only; fixes in W5/W6 dirs | written report `docs/reviews/W8-apple-api-audit.md` | ⬜ |
+| W8 | **Apple API audit** (after W5/W6) | review only; fixes in W5/W6 dirs | written report `docs/reviews/W8-apple-api-audit.md` | ✅ 31 issues (19 fixed, 12 left for Mac); TetherKit + extensions + app platform layer type-check against SDK-shaped shims; SwiftUI views hand-reviewed |
 
 ### Shared conventions (all Swift workstreams)
 
@@ -114,4 +115,6 @@ Record results in `docs/reviews/M1-spikes.md` and update `PLATFORM_CONSTRAINTS.m
 - [ ] (product) Final app name / bundle prefix — currently "Tether", `com.newwestsite`.
 - [ ] (product) Hosting for the server (Fly.io suggested: SQLite volume + single machine).
 - [ ] (product) Does the partner PIN default to "same as Screen Time passcode" in copy, or do we recommend a different secret?
+- [x] (W8) `docs/ARCHITECTURE.md` §5 still names one-shot activities `tether.t.<n>`; W8 renamed them `tether.t.<epochSeconds>` (stable names, no churn) and decomposes them in the device calendar.
+- [ ] (W8) Per-store token cap for `shield.applications`/`webDomains` assumed 50 → ShieldApplier shards over `tether.block[.1…3]`; confirm in spike S5.
 - [ ] (W1) `StateStore.update` prunes on every write by default (`pruneOnUpdate: true`, 7-day sessions/pauses, 2-day usage hits, 500 events); tests that persist old fixed-date sessions should pass `pruneOnUpdate: false`.

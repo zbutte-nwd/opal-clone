@@ -91,6 +91,21 @@ public enum ShieldContextStore {
         return nil
     }
 
+    /// For a shield action on an app/site that has no direct entry: it is shielded through a
+    /// blocked *category*, but `ShieldActionDelegate` only hands us the app/site token (not the
+    /// category). Returns the category entry when that is unambiguous; when several groups block
+    /// categories, a non-strict entry with an empty `groupId` (the pause flow then lets the user
+    /// choose); a strict entry when every category block is strict; nil when no category is blocked.
+    public static func categoryFallbackEntry() -> ShieldContextEntry? {
+        let entries = Array((read()?.categories ?? [:]).values)
+        guard !entries.isEmpty else { return nil }
+        let flexible = entries.filter { !$0.strict }
+        guard let first = flexible.min(by: { $0.groupId < $1.groupId }) else { return entries[0] }
+        if Set(flexible.map(\.groupId)).count == 1 { return first }
+        return ShieldContextEntry(groupId: "", groupName: "this app", title: first.title,
+                                  subtitle: first.subtitle, strict: false, until: nil)
+    }
+
     /// Best entry for a web domain that may be shielded directly or through its category.
     public static func entry(webDomain: WebDomainToken?, category: ActivityCategoryToken?) -> ShieldContextEntry? {
         let file = read()

@@ -16,7 +16,8 @@ MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
 
 IPHONEOS_DEPLOYMENT_TARGET = 17.0
-SWIFT_VERSION = 5.10
+// Language MODE, not compiler version: Xcode accepts 4.0, 4.2, 5.0, 6.0 ("5.10" is rejected).
+SWIFT_VERSION = 5.0
 TARGETED_DEVICE_FAMILY = 1
 SDKROOT = iphoneos
 

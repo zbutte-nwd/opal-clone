@@ -179,18 +179,22 @@ pause ends, override starts/ends, local midnight (usage-limit reset). It evaluat
 engine at candidate times and keeps only real changes.
 
 `ActivityScheduler` (TetherKit) maps them onto DeviceActivity:
-- Activity names `tether.t.<n>` for one-shot transitions: interval `[transition, transition+15min]`
+- Activity names `tether.t.<epochSeconds>` for one-shot transitions (stable names, so unchanged
+  activities are left running): interval `[transition, transition+15min]`, decomposed in the
+  **device** calendar (DeviceActivity interprets DateComponents in device-local time)
   (`intervalDidStart` is the wake-up; we don't rely on `intervalDidEnd`).
 - Activity `tether.daily` repeating 00:00–23:59 to wake at midnight & re-plan.
 - Activity `tether.usage.<ruleId>` with `DeviceActivityEvent`s for usage-limit rules.
-- Total ≤ 20 activities; stop all `tether.t.*` and re-register on every reconcile.
+- Total ≤ 20 activities; each reconcile diffs desired vs registered activities (signatures in
+  `activitySignatures.json`) and only stops/starts what changed. If iOS wakes the Monitor slightly
+  early, the Monitor reconciles at the transition's own time.
 - Monitor extension: every callback → `Reconciler.reconcile(now: Date())`.
 
 ## 6. ManagedSettings stores
 
 | Store name | Contents |
 |---|---|
-| `tether.block` | Union of tokens of all blocked groups: `shield.applications`, `shield.applicationCategories (.specific)`, `shield.webDomains`, `shield.webDomainCategories`; plus `webContent.blockedByFilter = .specific(domains)` from `BlockGroup.webDomains` |
+| `tether.block`, `tether.block.1…3` | Union of tokens (sharded across up to 4 stores in case of a per-store 50-token cap — spike S5) of all blocked groups: `shield.applications`, `shield.applicationCategories (.specific)`, `shield.webDomains`, `shield.webDomainCategories`; plus `webContent.blockedByFilter = .specific(domains)` from `BlockGroup.webDomains` |
 | `tether.tamper` | `application.denyAppRemoval = true` while protection enabled |
 
 The shield extension needs to know *which* rule/session blocked a token to render

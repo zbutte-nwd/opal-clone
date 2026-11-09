@@ -17,7 +17,12 @@ public final class AuthorizationManager {
     public private(set) var lastError: String?
 
     @ObservationIgnored private var cancellable: AnyCancellable?
-    private static let lastSeenKey = "tether.lastAuthorizationStatus"
+    /// False until a definite status (approved/denied) has been seen in this process. Right after
+    /// launch `authorizationStatus` can briefly read `.notDetermined` even when approved (VERIFY on
+    /// device); recording that would queue spurious approved -> notDetermined -> approved events
+    /// (= false "tamper" alerts on the server), so an unsettled `.notDetermined` is not recorded.
+    @ObservationIgnored private var settled = false
+    private nonisolated static let lastSeenKey = "tether.lastAuthorizationStatus"
 
     public init() {
         self.status = AuthorizationCenter.shared.authorizationStatus
@@ -64,6 +69,8 @@ public final class AuthorizationManager {
     }
 
     private func recordIfChanged(_ s: AuthorizationStatus) {
+        if s != .notDetermined { settled = true }
+        guard settled else { return }
         Self.recordIfChanged(Self.value(for: s))
     }
 

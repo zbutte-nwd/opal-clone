@@ -11,9 +11,9 @@ ManagedSettings stores -> plan transitions -> register DeviceActivity schedules.
 
 | Extension | Principal class | Trigger | Does | Limits |
 |---|---|---|---|---|
-| `TetherMonitor` | `TetherMonitorExtension: DeviceActivityMonitor` | OS, at `tether.t.<n>` / `tether.daily` boundaries and `tether.usage.<rule>` thresholds | `intervalDidStart/End` -> reconcile. `eventDidReachThreshold` -> `recordUsageLimitHit` (state.json + `usageLimitReached` event) -> reconcile | **No networking.** ~6 MB memory (S6). Short runtime. |
+| `TetherMonitor` | `TetherMonitorExtension: DeviceActivityMonitor` | OS, at `tether.t.<epochSeconds>` / `tether.daily` boundaries and `tether.usage.<rule>` thresholds | `intervalDidStart/End` -> reconcile (a one-shot that fires early reconciles at its own instant). `eventDidReachThreshold` -> `recordUsageLimitHit` (state.json + `usageLimitReached` event) -> reconcile | **No networking.** ~6 MB memory (S6). Short runtime. |
 | `TetherShieldConfig` | `TetherShieldConfigurationExtension: ShieldConfigurationDataSource` | OS, whenever a shield is drawn | Looks the token up in `shieldContext.json` (App Group) -> title/subtitle/buttons ("Close", and "Unlock for 5 min" unless strict). Generic fallback copy if no entry | Very tight memory; no network; must return fast. |
-| `TetherShieldAction` | `TetherShieldActionExtension: ShieldActionDelegate` | OS, on shield button tap | Primary -> `.close`. Secondary -> local notification "Tap to pause" (`tether://pause?group=<id>`, category `tether.pause`) then `.defer`. Cannot open the app | Short; must call `completionHandler` after the notification request is accepted. |
+| `TetherShieldAction` | `TetherShieldActionExtension: ShieldActionDelegate` | OS, on shield button tap | Primary -> `.close`. Secondary -> local notification "Tap to pause" (`tether://pause?group=<id>`, category `tether.pause`) then `.defer`. Apps/sites shielded via a *category* resolve through `ShieldContextStore.categoryFallbackEntry()` (empty group id = let the pause flow choose). Cannot open the app | Short; must call `completionHandler` after the notification request is accepted. |
 | `TetherReport` | `@main TetherReportExtension: DeviceActivityReportExtension` | App embeds `DeviceActivityReport(.totalActivity, filter:)` | `TotalActivityReport` scene -> `ActivitySummary` -> `TotalActivityView` (total today, top categories, top apps) | Sandboxed: no network, results cannot leave the device. Link TetherKit (shared `Context.totalActivity`). |
 | `TetherPush` | `TetherNotificationService: UNNotificationServiceExtension` | APNs alert push with `mutable-content: 1` | `PlatformSync.handlePush` (inline bundle or fetch -> store -> reconcile -> ack) -> reconcile -> rewrite body ("Social is now blocked until 3:00 PM") | ~30 s wall clock, ~24 MB memory. Delivers best attempt on `serviceExtensionTimeWillExpire`. |
 
@@ -35,19 +35,21 @@ ManagedSettings stores -> plan transitions -> register DeviceActivity schedules.
 
 ## VERIFY list (every `// VERIFY:` in the code)
 
-1. `ShieldApplier.swift` — `ManagedSettingsStore.Name("tether.block")` initializer form.
-2. `ShieldApplier.swift` — `ActivityCategoryPolicy.specific(_:except:)` default `except`; assigning to `shield.applicationCategories` and `shield.webDomainCategories`.
-3. `ShieldApplier.swift` — S5: 50-domain cap, coexistence of `webContent.blockedByFilter` and `shield.webDomains`.
+W8 (docs/reviews/W8-apple-api-audit.md) audited every item below; signature items it is confident about are marked "W8-audited" in code.
+
+1. `ShieldApplier.swift` — `ManagedSettingsStore.Name("tether.block")` initializer form. (W8: matches SDK.)
+2. `ShieldApplier.swift` — `ActivityCategoryPolicy.specific(_:except:)` default `except`; assigning to `shield.applicationCategories` and `shield.webDomainCategories`. (W8: matches SDK.)
+3. `ShieldApplier.swift` — S5: 50-domain cap, coexistence of `webContent.blockedByFilter` and `shield.webDomains`; **per-store 50-token cap** on `shield.applications`/`shield.webDomains` (W8 shards tokens over `tether.block`, `tether.block.1…3`).
 4. `ShieldApplier.swift` (`TamperLock`) — S1: `application.denyAppRemoval` semantics (we set `true` / `nil`).
 5. `ShieldContext.swift` — token `JSONEncoder` output is stable across processes (used as lookup key between app and shield extensions).
-6. `ActivityScheduler.swift` — S4 limits (20 activities, 15 min); `DeviceActivityName(rawValue:)`, `DeviceActivityEvent.Name(rawValue:)`, `DeviceActivityCenter.activities`, `stopMonitoring([…])` signatures.
-7. `ActivityScheduler.swift` — `DeviceActivityEvent(applications:categories:webDomains:threshold:)` and threshold as `DateComponents(hour:minute:)`.
+6. `ActivityScheduler.swift` — S4 limits (20 activities, 15 min). (Signatures: W8-audited.) One-shots are now named `tether.t.<epochSeconds>` and decomposed with the *device* calendar.
+7. `ActivityScheduler.swift` — `DeviceActivityEvent(…, threshold:, includesPastActivity: true)` on iOS 17.4+ (label to confirm), old init below 17.4.
 8. `NotificationRouter.swift` / `TetherShieldActionExtension.swift` — S3: posting from the extension, deep link.
 9. `AuthorizationManager.swift` — `AuthorizationCenter.shared.$authorizationStatus` publisher; `requestAuthorization(for: FamilyControlsMember)`.
 10. `Keychain.swift` — keychain access group entitlement in every target (otherwise -34018).
 11. `ProtectionController.swift` — `clearAllSettings()` is synchronous.
-12. `ReportContexts.swift` — `DeviceActivityReport.Context(_:)` initializer.
-13. `TotalActivityReport.swift` — nested AsyncSequence shape (`activitySegments`, `categories`, `applications`, `localizedDisplayName`, `bundleIdentifier`).
-14. `TetherShieldConfigurationExtension.swift` — `ShieldConfiguration.init` labels/order; `Label(text:color:)`.
+12. `ReportContexts.swift` — `DeviceActivityReport.Context(_:)` initializer. (W8: matches Apple's template.)
+13. `TotalActivityReport.swift` — nested AsyncSequence shape (`activitySegments`, `categories`, `applications`, `localizedDisplayName`, `bundleIdentifier`). (W8: matches SDK; confirm on device.)
+14. `TetherShieldConfigurationExtension.swift` — `ShieldConfiguration.init` labels/order; `Label(text:color:)`. (W8: matches SDK.)
 15. `TetherNotificationService.swift` — S2.
 16. `TetherMonitorExtension.swift` — S6.

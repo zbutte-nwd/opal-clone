@@ -14,12 +14,18 @@ class TetherShieldActionExtension: ShieldActionDelegate {
 
     override func handle(action: ShieldAction, for application: ApplicationToken,
                          completionHandler: @escaping (ShieldActionResponse) -> Void) {
-        respond(action, entry: ShieldContextStore.entry(for: application), completionHandler)
+        // No direct entry -> shielded through a category (the configuration extension showed the
+        // category's copy and an "Unlock" button), so resolve it the same way.
+        respond(action, entry: ShieldContextStore.entry(for: application) ?? ShieldContextStore.categoryFallbackEntry(),
+                completionHandler)
     }
 
     override func handle(action: ShieldAction, for webDomain: WebDomainToken,
                          completionHandler: @escaping (ShieldActionResponse) -> Void) {
-        respond(action, entry: ShieldContextStore.entry(for: webDomain), completionHandler)
+        // No direct entry -> shielded through a category (the configuration extension showed the
+        // category's copy and an "Unlock" button), so resolve it the same way.
+        respond(action, entry: ShieldContextStore.entry(for: webDomain) ?? ShieldContextStore.categoryFallbackEntry(),
+                completionHandler)
     }
 
     override func handle(action: ShieldAction, for category: ActivityCategoryToken,
@@ -34,7 +40,10 @@ class TetherShieldActionExtension: ShieldActionDelegate {
             completionHandler(.close)
         case .secondaryButtonPressed:
             guard let entry, !entry.strict else { completionHandler(.close); return }
-            NotificationRouter.postPauseNotification(groupId: entry.groupId, groupName: entry.groupName) {
+            // Empty groupId (ambiguous category fallback) -> tether://pause?group= -> the pause flow
+            // offers every blocked group.
+            NotificationRouter.postPauseNotification(groupId: entry.groupId,
+                                                     groupName: entry.groupId.isEmpty ? nil : entry.groupName) {
                 // Wait for the system to accept the request before the process can be suspended.
                 completionHandler(.defer)
             }

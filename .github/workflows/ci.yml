@@ -38,6 +38,8 @@ jobs:
           restore-keys: spm-linux-
       - name: swift test
         run: cd ios/Packages/TetherCore && swift test
+      - name: type-check iOS-only Swift against SDK shims
+        run: cd tools/linux-ios-typecheck && ./sync.sh && swift build && swift test
 
   server:
     runs-on: ubuntu-latest

@@ -3,6 +3,7 @@
 // rewrite the visible text. ~30 s budget. VERIFY: spike S2 — ManagedSettingsStore writes
 // from an NSE (needs the family-controls entitlement on this extension).
 
+import Foundation
 import UserNotifications
 import TetherCore
 import TetherAPI

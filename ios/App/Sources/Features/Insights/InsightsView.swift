@@ -63,7 +63,10 @@ struct InsightsView: View {
         let cal = Calendar.current
         let start = cal.startOfDay(for: now)
         let end = cal.date(byAdding: .day, value: 1, to: start) ?? now
-        return DeviceActivityFilter(segment: .daily(during: DateInterval(start: start, end: end)))
+        // Same argument shape as Apple's DeviceActivityReport sample (users/devices spelled out).
+        return DeviceActivityFilter(segment: .daily(during: DateInterval(start: start, end: end)),
+                                    users: .all,
+                                    devices: .init([.iPhone]))
     }
 }
 

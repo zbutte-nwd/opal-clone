@@ -10,7 +10,9 @@ export DATABASE_PATH="$TMP/e2e.db" PORT JWT_SECRET=e2e-secret PUBLIC_BASE_URL="h
 cd "$ROOT/server"
 [ -d node_modules ] || npm install --silent
 npm run --silent seed >/dev/null
-npx tsx src/index.ts >"$TMP/server.log" 2>&1 & SERVER=$!
+if curl -s "localhost:$PORT/healthz" >/dev/null 2>&1; then echo "port $PORT already in use; set PORT=..."; exit 1; fi
+# run node directly (not via npx) so $! is the server itself and the trap really stops it
+node --import tsx src/index.ts >"$TMP/server.log" 2>&1 & SERVER=$!
 trap 'kill $SERVER 2>/dev/null; rm -rf "$TMP"' EXIT
 for _ in $(seq 1 30); do curl -sf "localhost:$PORT/healthz" >/dev/null && break; sleep 0.5; done
 j() { python3 -c "import sys,json;print(json.load(sys.stdin)$1)"; }

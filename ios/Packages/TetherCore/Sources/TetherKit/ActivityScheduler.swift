@@ -9,7 +9,9 @@ import TetherCore
 /// transition even when the app is not running (ARCHITECTURE §5).
 ///
 /// Activities:
-/// - `tether.t.<n>`        one-shot, `[transition, transition + 15 min]`, not repeating
+/// - `tether.t.<epoch>`    one-shot, `[transition, transition + 15 min]`, not repeating. Named by the
+///                         transition's Unix time so an unchanged transition keeps its name and is
+///                         not stopped/re-registered on every reconcile (W8).
 /// - `tether.daily`        repeating 00:00–23:59 (wakes at midnight to re-plan / reset usage)
 /// - `tether.usage.<rule>` repeating daily, one `DeviceActivityEvent` named `limit`
 ///
@@ -29,6 +31,14 @@ public final class ActivityScheduler: @unchecked Sendable {
     public static let usageEventName = "limit"
 
     public static func usageActivityName(ruleId: RuleID) -> String { usagePrefix + ruleId }
+    public static func oneShotActivityName(for date: Date) -> String {
+        oneShotPrefix + String(Int(date.timeIntervalSince1970.rounded(.down)))
+    }
+    /// Inverse of `oneShotActivityName`; nil when `activity` is not a one-shot transition activity.
+    public static func transitionDate(fromActivity rawValue: String) -> Date? {
+        guard rawValue.hasPrefix(oneShotPrefix), let t = Int(rawValue.dropFirst(oneShotPrefix.count)) else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(t))
+    }
     /// Inverse of `usageActivityName`; nil when `activity` is not a usage activity.
     public static func ruleId(fromActivity rawValue: String) -> RuleID? {
         rawValue.hasPrefix(usagePrefix) ? String(rawValue.dropFirst(usagePrefix.count)) : nil
@@ -50,13 +60,17 @@ public final class ActivityScheduler: @unchecked Sendable {
                          selections: [GroupID: FamilyActivitySelection],
                          timeZone: TimeZone = .current,
                          now: Date = Date()) {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
+        // DeviceActivitySchedule interprets DateComponents in the DEVICE calendar/time zone,
+        // so absolute instants must be decomposed with the device calendar — not the policy
+        // time zone (`timeZone`, which may come from the server bundle). `timeZone` is kept in
+        // the signature only so a policy-tz change still forces a re-plan.
+        let calendar = Calendar.current
 
         var sigs = loadSignatures()
         let center = self.center
-        // VERIFY: `DeviceActivityName(rawValue:)` / `DeviceActivityEvent.Name(rawValue:)` exist (both are RawRepresentable<String>);
-        // VERIFY: `DeviceActivityCenter.activities` and `stopMonitoring(_: [DeviceActivityName])` signatures.
+        // W8-audited (iOS 16+ SDK): `DeviceActivityName(rawValue:)` / `DeviceActivityEvent.Name(rawValue:)`
+        // (RawRepresentable<String>), `DeviceActivityCenter.activities: [DeviceActivityName]`,
+        // `stopMonitoring(_: [DeviceActivityName] = [])`, `startMonitoring(_:during:events:) throws`.
         let running = Set(center.activities.map { $0.rawValue })
         var desired: [String: (sig: String, register: () throws -> Void)] = [:]
 
@@ -94,9 +108,19 @@ public final class ActivityScheduler: @unchecked Sendable {
                     intervalEnd: DateComponents(hour: 23, minute: 59),
                     repeats: true)
                 // Threshold as hours+minutes so values >= 60 are well-formed.
-                // VERIFY: DeviceActivityEvent.init(applications:categories:webDomains:threshold:)
-                let event = DeviceActivityEvent(applications: apps, categories: cats, webDomains: webs,
-                                                threshold: DateComponents(hour: minutes / 60, minute: minutes % 60))
+                let threshold = DateComponents(hour: minutes / 60, minute: minutes % 60)
+                let event: DeviceActivityEvent
+                if #available(iOS 17.4, *) {
+                    // Count usage since the start of today's interval (midnight), not only usage after
+                    // registration — a rule added/changed mid-day must still honour "N minutes per day".
+                    // Re-firing on re-registration is harmless: recordUsageLimitHit is idempotent per day.
+                    // VERIFY: label `includesPastActivity:` (iOS 17.4 SDK).
+                    event = DeviceActivityEvent(applications: apps, categories: cats, webDomains: webs,
+                                                threshold: threshold, includesPastActivity: true)
+                } else {
+                    event = DeviceActivityEvent(applications: apps, categories: cats, webDomains: webs,
+                                                threshold: threshold)
+                }
                 try center.startMonitoring(DeviceActivityName(rawValue: name), during: schedule,
                                            events: [DeviceActivityEvent.Name(rawValue: Self.usageEventName): event])
             })
@@ -105,12 +129,16 @@ public final class ActivityScheduler: @unchecked Sendable {
         // 3. one-shot transitions (future only), within the remaining budget
         let budget = max(0, Self.maxActivities - desired.count)
         let future = transitions.filter { $0 > now }.sorted().prefix(budget)
-        for (i, date) in future.enumerated() {
-            let name = "\(Self.oneShotPrefix)\(i)"
+        for transition in future {
+            // Round UP to whole seconds: DateComponents carry no sub-second part, and waking a few
+            // hundred ms *before* the transition would evaluate the old state (see Monitor).
+            let date = Date(timeIntervalSince1970: transition.timeIntervalSince1970.rounded(.up))
+            let name = Self.oneShotActivityName(for: date)
+            guard desired[name] == nil else { continue }   // two transitions within the same second
             let end = date.addingTimeInterval(TimeInterval(Self.minIntervalMinutes * 60))
             let startComps = Self.components(date, calendar)
             let endComps = Self.components(end, calendar)
-            desired[name] = ("t|\(Int(date.timeIntervalSince1970))|\(timeZone.identifier)", {
+            desired[name] = ("t-v2|\(calendar.timeZone.identifier)|\(timeZone.identifier)", {
                 let schedule = DeviceActivitySchedule(intervalStart: startComps, intervalEnd: endComps, repeats: false)
                 try center.startMonitoring(DeviceActivityName(rawValue: name), during: schedule)
             })

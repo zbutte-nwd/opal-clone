@@ -8,7 +8,17 @@ import TetherCore
 /// Items use `kSecAttrAccessibleAfterFirstUnlock` so extensions can read while the
 /// device is locked (after the first unlock since boot).
 public enum Keychain {
-    public enum KeychainError: Error, Equatable { case unexpectedStatus(OSStatus), encoding }
+    public enum KeychainError: Error, Equatable, LocalizedError {
+        case unexpectedStatus(OSStatus), encoding
+        public var errorDescription: String? {
+            switch self {
+            case .unexpectedStatus(-34018):
+                return "Keychain error -34018 (missing keychain-access-groups entitlement for this target)."
+            case .unexpectedStatus(let s): return "Keychain error \(s)."
+            case .encoding: return "Keychain value could not be encoded."
+            }
+        }
+    }
 
     static let service = "com.newwestsite.tether"
 

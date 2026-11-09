@@ -28,7 +28,6 @@ final class AppModel {
     // MARK: Observable state
     private(set) var state = PersistedState()
     private(set) var now = Date()
-    private(set) var screenTimeAuth: ScreenTimeAuth = .notDetermined
     private(set) var groupStates: [GroupID: GroupState] = [:]
     private(set) var untilByGroup: [GroupID: Date] = [:]
     private(set) var nextBlock: NextBlock?
@@ -121,7 +120,6 @@ final class AppModel {
     func refresh() {
         if let loaded = try? platform.stateStore.load() { state = loaded }
         now = Date()
-        screenTimeAuth = platform.screenTimeAuth
         let input = state.engineInput
         let tz = PolicyEngine.effectiveTimeZone(input, deviceTimeZone: .current)
         let evaluated = PolicyEngine.evaluate(input, at: now, timeZone: tz)
@@ -140,6 +138,11 @@ final class AppModel {
     }
 
     // MARK: Derived
+
+    /// Read through to the platform (TetherKit's `AuthorizationManager` is `@Observable`), so views
+    /// update as soon as iOS reports a change (e.g. revocation, or the launch-time status settling)
+    /// instead of on the next `refresh()`.
+    var screenTimeAuth: ScreenTimeAuth { platform.screenTimeAuth }
 
     var input: EngineInput { state.engineInput }
     var timeZone: TimeZone { PolicyEngine.effectiveTimeZone(input, deviceTimeZone: .current) }

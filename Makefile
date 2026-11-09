@@ -33,3 +33,7 @@ bootstrap-mac:
 .PHONY: e2e
 e2e: ## cross-stack smoke test: server + device API + Swift engine decode
 	./scripts/e2e-smoke.sh
+
+.PHONY: typecheck-ios-linux
+typecheck-ios-linux: ## type-check iOS-only Swift against SDK shims (Linux)
+	cd tools/linux-ios-typecheck && ./sync.sh && swift build && swift test

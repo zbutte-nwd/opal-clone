@@ -11,13 +11,26 @@ public final class ShieldApplier: @unchecked Sendable {
     public static let storeName = "tether.block"
     /// `webContent.blockedByFilter = .specific` limit. VERIFY: spike S5 (50 domains).
     public static let maxFilterDomains = 50
+    /// Per-store cap on `shield.applications` / `shield.webDomains` tokens. VERIFY: spike S5 —
+    /// believed to be 50 per ManagedSettingsStore (more = the store's app shield is ignored), so
+    /// tokens are sharded over `tether.block`, `tether.block.1`, … (stores combine: the union
+    /// of all stores' shields applies). Harmless if the real limit is higher.
+    public static let maxTokensPerStore = 50
+    public static let shardCount = 4
 
-    private let store: ManagedSettingsStore
+    /// `stores[0]` is `tether.block` (also holds categories + web filter); the rest only hold
+    /// overflow app / web-domain tokens.
+    private let stores: [ManagedSettingsStore]
+    private var store: ManagedSettingsStore { stores[0] }
+
+    public static func shardName(_ index: Int) -> String { index == 0 ? storeName : "\(storeName).\(index)" }
 
     public init() {
-        // VERIFY: `ManagedSettingsStore.Name` is constructible as `Name("…")` (it is
-        // RawRepresentable & ExpressibleByStringLiteral in the iOS 16+ SDK).
-        self.store = ManagedSettingsStore(named: ManagedSettingsStore.Name(Self.storeName))
+        // `ManagedSettingsStore.Name` is RawRepresentable with `init(_ rawValue:)` (Apple's docs
+        // use `extension ManagedSettingsStore.Name { static let x = Self("x") }`).
+        self.stores = (0..<Self.shardCount).map {
+            ManagedSettingsStore(named: ManagedSettingsStore.Name(Self.shardName($0)))
+        }
     }
 
     /// Applies the shields for `states` (only `blocked == true` groups contribute).
@@ -67,10 +80,13 @@ public final class ShieldApplier: @unchecked Sendable {
         }
 
         // Only assign when different (avoids needless store churn / notifications).
-        let newApps: Set<ApplicationToken>? = apps.isEmpty ? nil : apps
-        if store.shield.applications != newApps { store.shield.applications = newApps }
+        let appShards = Self.shards(apps)
+        for (i, s) in stores.enumerated() {
+            let newApps: Set<ApplicationToken>? = i < appShards.count ? appShards[i] : nil
+            if s.shield.applications != newApps { s.shield.applications = newApps }
+        }
 
-        // VERIFY: `ShieldSettings.ActivityCategoryPolicy.specific(_:except:)` — `except` defaults to [].
+        // W8-audited: `.specific(_ categories: Set<ActivityCategoryToken>, except: Set<…Token> = [])`.
         if cats.isEmpty {
             store.shield.applicationCategories = nil
             store.shield.webDomainCategories = nil
@@ -79,8 +95,11 @@ public final class ShieldApplier: @unchecked Sendable {
             store.shield.webDomainCategories = .specific(cats)
         }
 
-        let newWeb: Set<WebDomainToken>? = webTokens.isEmpty ? nil : webTokens
-        if store.shield.webDomains != newWeb { store.shield.webDomains = newWeb }
+        let webShards = Self.shards(webTokens)
+        for (i, s) in stores.enumerated() {
+            let newWeb: Set<WebDomainToken>? = i < webShards.count ? webShards[i] : nil
+            if s.shield.webDomains != newWeb { s.shield.webDomains = newWeb }
+        }
 
         // Server/local plain domains. Cap at 50, deterministic order.
         // VERIFY: spike S5 — limit and coexistence with `shield.webDomains`.
@@ -99,11 +118,29 @@ public final class ShieldApplier: @unchecked Sendable {
 
     /// Removes every setting this store holds, and empties the shield context.
     public func clearAll() {
-        store.clearAllSettings()
+        for s in stores { s.clearAllSettings() }
         ShieldContextStore.write(ShieldContextFile(generatedAt: Date()))
     }
 
     // MARK: Helpers
+
+    /// Splits `tokens` into deterministic chunks of `maxTokensPerStore` (ordered by token key so
+    /// a token stays in the same store across reconciles). Tokens beyond all shards are dropped.
+    static func shards<T: Encodable & Hashable>(_ tokens: Set<T>) -> [Set<T>] {
+        guard !tokens.isEmpty else { return [] }
+        let encoder = JSONEncoder()
+        let ordered = tokens
+            .map { (key: (try? encoder.encode($0).base64EncodedString()) ?? "", token: $0) }
+            .sorted { $0.key < $1.key }
+            .map(\.token)
+        let capacity = maxTokensPerStore * shardCount
+        if ordered.count > capacity {
+            TLog.shield.error("\(ordered.count) tokens exceed shard capacity \(capacity); extra tokens are not shielded")
+        }
+        return stride(from: 0, to: min(ordered.count, capacity), by: maxTokensPerStore).map {
+            Set(ordered[$0..<min($0 + maxTokensPerStore, ordered.count, capacity)])
+        }
+    }
 
     static func normalizeDomain(_ raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
