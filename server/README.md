@@ -46,7 +46,7 @@ device, with the bundle inlined when < 3000 bytes. HTTP 410 / `BadDeviceToken` c
 
 `POST /mcp` — Model Context Protocol, Streamable HTTP, stateless, JSON responses; `Authorization: Bearer tk_live_…`.
 Tools (`src/mcp.ts`): `status`, `block`, `allow`, `end`, `create_group`, `update_group`, `delete_group`,
-`add_schedule`, `remove_schedule`, `set_mode`, `update_settings`, `pairing_code`, `unlock_requests`, `approve_unlock`, `deny_unlock`. Each calls the REST routes
+`add_schedule` (strictness flexible/guarded/strict), `remove_schedule`, `copy_from_phone`, `set_mode`, `update_settings`, `pairing_code`, `unlock_requests`, `approve_unlock`, `deny_unlock`. Each calls the REST routes
 in-process (`app.inject`), so behavior, audit and pushes match the API exactly. Workstation setup
 (`npm run setup`, `npm run cli -- pair|apikey|info`, Windows task, `tailscale serve`): `../docs/WORKSTATION.md`.
 

@@ -5,6 +5,7 @@ import TetherCore
 struct GroupsView: View {
     @Environment(AppModel.self) private var model
     @State private var showNew = false
+    @State private var guardTrigger = 0
 
     private var local: [BlockGroup] { model.allGroups.filter { $0.source == .local } }
     private var server: [BlockGroup] { model.allGroups.filter { $0.source == .server } }
@@ -23,7 +24,9 @@ struct GroupsView: View {
                                 ForEach(local) { g in
                                     NavigationLink { GroupEditorView(groupId: g.id) } label: { GroupRow(group: g) }
                                 }
-                                .onDelete { idx in idx.map { local[$0].id }.forEach(model.deleteGroup) }
+                                .onDelete { idx in
+                                    for id in idx.map({ local[$0].id }) where !model.deleteGroup(id) { guardTrigger += 1; break }
+                                }
                             }
                         }
                         if !server.isEmpty {
@@ -39,6 +42,7 @@ struct GroupsView: View {
                 }
             }
             .navigationTitle("Groups")
+            .guardedChangePrompt(trigger: guardTrigger)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showNew = true } label: { Image(systemName: "plus") }.accessibilityLabel("New group")

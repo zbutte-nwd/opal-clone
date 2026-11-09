@@ -71,6 +71,8 @@ final class LivePlatformServices: PlatformServices {
     }
 
     func changePIN(old: String, new: String) throws { try protection.changePIN(old: old, new: new) }
+    var effectiveProtectionLock: ProtectionLock { protection.effectiveLock }
+    func authorizeGuardedChange(pin: String?) throws { try protection.authorizeGuardedChange(pin: pin) }
 
     // MARK: Server
 
@@ -93,6 +95,8 @@ final class LivePlatformServices: PlatformServices {
         guard sync.isPaired else { return .notPaired }
         return summarize(await sync.syncNow(reason: .manual))
     }
+
+    func localStateChanged() { PlatformSync.shared.localStateChanged() }
 
     func handlePush(userInfo: [AnyHashable: Any]) async {
         _ = await sync.handlePush(userInfo)

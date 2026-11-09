@@ -40,6 +40,7 @@ struct ServerGroupView: View {
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var loaded = false
+    @State private var guardTrigger = 0
 
     var body: some View {
         let g = model.group(groupId)
@@ -59,10 +60,11 @@ struct ServerGroupView: View {
             }
         }
         .navigationTitle(g?.name ?? "Group")
+        .guardedChangePrompt(trigger: guardTrigger) { dismiss() }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { model.setSelection(selection, for: groupId); dismiss() }
+                Button("Done") { if model.setSelection(selection, for: groupId) { dismiss() } else { guardTrigger += 1 } }
             }
         }
         .familyActivityPicker(isPresented: $showPicker, selection: $selection)

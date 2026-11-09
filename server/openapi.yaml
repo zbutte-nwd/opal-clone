@@ -282,6 +282,17 @@ paths:
       summary: Acknowledge an applied version
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version, appliedAt, blockedGroupIds, authorizationStatus], properties: { version: { type: integer }, appliedAt: { type: string, format: date-time }, blockedGroupIds: { type: array, items: { type: string } }, authorizationStatus: { enum: [approved, denied, notDetermined] }, timeZone: { type: string, description: "Device IANA time zone" } } } } } }
       responses: { '204': { description: Stored } }
+  /v1/devices/me/local:
+    put:
+      tags: [device-api]
+      security: [{ deviceToken: [] }]
+      summary: Upload the read-only snapshot of phone-made state (app >= 0.2.0)
+      description: Body per contracts/device-local.schema.json (counts only, never app identities). Replaced whole; the same hash as stored is a no-op.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, description: 'contracts/device-local.schema.json', required: [hash, reportedAt, groups, rules, sessions, pauses, settings] } } } }
+      responses:
+        '204': { description: Stored (or unchanged hash) }
+        '413': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /v1/devices/me/events:
     post:
       tags: [device-api]
@@ -371,6 +382,11 @@ components:
         hasPushToken: { type: boolean }
         protectionEnabled: { type: [boolean, 'null'] }
         pairedAt: { type: string, format: date-time }
+        local:
+          description: The phone's last read-only snapshot (contracts/device-local.schema.json), or null if never sent. Display only.
+          oneOf:
+            - type: 'null'
+            - { type: object, required: [receivedAt, snapshot], properties: { receivedAt: { type: string, format: date-time }, snapshot: { type: object } } }
     DeviceEvent: { type: object, required: [id, type, occurredAt], properties: { id: { type: string }, type: { type: string }, occurredAt: { type: string, format: date-time }, data: { type: [object, 'null'] }, receivedAt: { type: string, format: date-time } } }
     Group:
       allOf:
@@ -384,6 +400,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 60 }
         colorHex: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
         webDomains: { type: array, maxItems: 50, items: { type: string, pattern: '^[a-z0-9.-]+\.[a-z]{2,}$' } }
+        copiedFrom: { type: [string, 'null'], pattern: '^lgrp_[A-Za-z0-9_]+$', description: 'Server copy of a phone-made group; the phone carries its app selection over once' }
     RuleInput:
       type: object
       required: [name, groupIds, action, trigger]

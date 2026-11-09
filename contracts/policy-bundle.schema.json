@@ -29,7 +29,9 @@
         "name": { "type": "string", "minLength": 1, "maxLength": 60 },
         "colorHex": { "type": ["string", "null"], "pattern": "^#[0-9A-Fa-f]{6}$" },
         "webDomains": { "type": "array", "maxItems": 50, "items": { "type": "string", "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$" } },
-        "source": { "$ref": "#/$defs/Source", "default": "server" }
+        "source": { "$ref": "#/$defs/Source", "default": "server" },
+        "copiedFrom": { "type": "string", "pattern": "^lgrp_[A-Za-z0-9_]+$",
+                        "description": "Server copy of a phone-made group; the phone carries that group's app selection over once." }
       }
     },
     "Window": {
@@ -64,11 +66,14 @@
         "enabled": { "type": "boolean" },
         "action": { "enum": ["block", "allow"] },
         "trigger": { "$ref": "#/$defs/Trigger" },
-        "strictness": { "enum": ["flexible", "strict"] },
+        "strictness": { "enum": ["flexible", "guarded", "strict"],
+                        "description": "guarded = flexible for the engine; the app locks edits while the rule is active. Block rules only." },
         "priority": { "type": "integer", "default": 0 },
         "maxPausesPerDay": { "type": ["integer", "null"], "minimum": 0 },
         "source": { "$ref": "#/$defs/Source", "default": "server" }
-      }
+      },
+      "if": { "required": ["strictness"], "properties": { "strictness": { "const": "guarded" } } },
+      "then": { "properties": { "action": { "const": "block" } } }
     },
     "Override": {
       "type": "object",

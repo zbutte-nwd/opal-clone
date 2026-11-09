@@ -4,6 +4,7 @@ import TetherCore
 struct RulesView: View {
     @Environment(AppModel.self) private var model
     @State private var showNew = false
+    @State private var guardTrigger = 0
 
     private var local: [Rule] { model.state.localRules }
     private var server: [Rule] { model.state.bundle?.rules ?? [] }
@@ -27,7 +28,9 @@ struct RulesView: View {
                                 ForEach(local) { r in
                                     NavigationLink { RuleEditorView(ruleId: r.id) } label: { RuleRow(rule: r) }
                                 }
-                                .onDelete { idx in idx.map { local[$0].id }.forEach(model.deleteRule) }
+                                .onDelete { idx in
+                                    for id in idx.map({ local[$0].id }) where !model.deleteRule(id) { guardTrigger += 1; break }
+                                }
                             }
                         }
                         if !server.isEmpty {
@@ -48,6 +51,7 @@ struct RulesView: View {
                 }
             }
             .sheet(isPresented: $showNew) { NavigationStack { RuleEditorView(ruleId: nil) } }
+            .guardedChangePrompt(trigger: guardTrigger)
         }
     }
 }
@@ -55,27 +59,31 @@ struct RulesView: View {
 struct RuleRow: View {
     @Environment(AppModel.self) private var model
     let rule: Rule
+    @State private var guardTrigger = 0
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(rule.name).font(.headline)
                     if rule.source == .server { Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).accessibilityLabel("Managed by server") }
-                    if rule.strictness == .strict { Text("Strict").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(Color.orange.opacity(0.2))) }
+                    if rule.strictness != .flexible {
+                        Text(rule.strictness == .strict ? "Strict" : "Guarded").font(.caption2.weight(.bold)).padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill((rule.strictness == .strict ? Color.orange : Color.blue).opacity(0.2)))
+                    }
                 }
                 Text(RuleSummary.describe(rule)).font(.subheadline).foregroundStyle(.secondary)
                 Text(rule.groupIds.compactMap { model.group($0)?.name }.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             if rule.source == .local {
-                Toggle("Enabled", isOn: Binding(get: { rule.enabled }, set: { model.setRuleEnabled(rule.id, $0) }))
+                Toggle("Enabled", isOn: Binding(get: { rule.enabled }, set: { if !model.setRuleEnabled(rule.id, $0) { guardTrigger += 1 } }))
                     .labelsHidden()
             } else if !rule.enabled {
                 Text("Off").font(.caption).foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .combine)
+        .guardedChangePrompt(trigger: guardTrigger)
     }
 }
 
@@ -88,7 +96,7 @@ struct RuleDetailView: View {
             Section("When") { Text(RuleSummary.describe(rule)) }
             Section("Groups") { ForEach(rule.groupIds, id: \.self) { Text(model.group($0)?.name ?? $0) } }
             Section("Strictness") {
-                Text(rule.strictness == .strict ? "Strict — can't be paused" : "Flexible — can be paused")
+                Text(rule.strictness == .strict ? "Strict — can't be paused" : rule.strictness == .guarded ? "Guarded — can be paused" : "Flexible — can be paused")
                 if let m = rule.maxPausesPerDay { Text("Up to \(m) pauses per day") }
             }
         }

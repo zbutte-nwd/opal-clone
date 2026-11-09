@@ -64,10 +64,16 @@ protocol PlatformServices: AnyObject {
     func disableProtection(pin: String?) throws
     func disableProtectionAfterRemoteApproval(requestId: String) throws
     func changePIN(old: String, new: String) throws
+    /// Stricter of the local lock and the server's `settings.protectionLock`.
+    var effectiveProtectionLock: ProtectionLock { get }
+    /// One change to an active guarded/strict schedule: PIN (shared lockout) under partnerPIN, else throws.
+    func authorizeGuardedChange(pin: String?) throws
 
     // Server
     func syncNow() async -> SyncSummary
     func handlePush(userInfo: [AnyHashable: Any]) async
+    /// A local group/rule/session/pause/setting changed: refresh the server's read-only snapshot.
+    func localStateChanged()
     func pair(code: String, serverURL: URL?) async throws
     func unpair() async
     func createUnlockRequest(kind: UnlockKind, groupIds: [GroupID], minutes: Int?, reason: String?) async throws -> String

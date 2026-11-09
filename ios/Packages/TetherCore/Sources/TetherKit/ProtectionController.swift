@@ -157,6 +157,25 @@ public final class ProtectionController: @unchecked Sendable {
         try performDisable(method: "remoteApproval", extra: ["requestId": requestId], now: now)
     }
 
+    // MARK: Guarded schedules
+
+    public static let guardedRefusal =
+        "This schedule is active, so it can't be changed until it ends. For a holiday or emergency, ask your admin "
+        + "to unlock it, or ask your assistant to copy this schedule to the server so it can be unlocked remotely."
+
+    /// Authorizes one change to an active guarded/strict schedule (TetherCore.ScheduleGuard said `.locked`).
+    /// Returns when protection is off (no gate), or the effective lock is partnerPIN and `pin` verifies,
+    /// using the SAME throttle/lockout counter as `disable`. Throws for remoteApproval/osOnly.
+    public func authorizeGuardedChange(pin: String?, now: Date = Date()) throws {
+        mutex.lock(); defer { mutex.unlock() }
+        let s = try loadState()
+        guard s.protection.enabled else { return }
+        switch Self.effectiveLock(s) {
+        case .partnerPIN: try verifyPINThrottled(pin, now: now)
+        case .remoteApproval, .osOnly: throw ProtectionError.notAllowedInApp(instructions: Self.guardedRefusal)
+        }
+    }
+
     // MARK: PIN management
 
     public func changePIN(old: String, new: String, now: Date = Date()) throws {

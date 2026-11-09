@@ -221,3 +221,23 @@ Server: workstation (Windows, Node 24) via tailscale serve :47443, APNs sandbox 
 
 Bugs found and fixed this run: false `revoked` on server after background launch (M1 F2); generic pairing
 error text; duplicate disable-protection requests.
+
+### Run 2 — 2026-11-09 (guarded schedules + phone visibility/copy, plan Task 11)
+
+```
+Device: iPhone 17 Pro  iOS: 26.6  Build: app 0.2.0 (feature/guarded-and-visibility)
+Server: workstation, deployed 75a1901 (feature branch)  Effective lock: remoteApproval  Tester: Zakir + Mac agent  Date: 2026-11-09 ~05:05 PT
+```
+
+| Check | Result | Notes |
+|---|---|---|
+| (4) phone-made section in MCP status | PASS | Within a minute of the app being opened: groups with counts only (Socials: 3 apps, 1 site), local schedules incl. two guarded. Server picked up appVersion 0.2.0 from the User-Agent without re-pairing. |
+| (5) copy_from_phone group | PASS | Server copy "Socials" applied by the phone within seconds (app closed, NSE path); it showed the 3 apps + site without re-picking; the original under "Yours" was untouched. |
+| (3) shrink a group of an active **server** guarded schedule | PASS | Temporary server rule "Task 11 test" (guarded, Mon 05:00–06:00) on the copy; removing an app from its mapping was refused. Rule removed after the test. |
+| (2) active **local** guarded schedule locked | PASS | "Mornings" (05:00–10:00, active): disable/edit/delete refused with the remoteApproval message. |
+| (2) after hours it's free | PASS | "Nights" (22:00–05:00, inactive) edited normally. |
+| (1) guarded still pauses | PASS | Paused Socials under "Mornings" (1 pause/day). |
+| (6) app < 0.2.0 with a guarded rule | N/A | No 0.1.0 device left; covered by server tests (bundle downgrades guarded→flexible for appVersion < 0.2.0). |
+| partnerPIN prompt path | NOT TESTED | Effective lock is remoteApproval (server setting); the PIN sheet needs partnerPIN. |
+
+All suites green on the branch: contracts + 63 vectors, Swift 169, server 119, admin 22.

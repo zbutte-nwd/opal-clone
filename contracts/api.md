@@ -23,7 +23,7 @@ Auth schemes:
 |---|---|---|
 | POST | `/pairing-codes` | `{deviceName?}` → `201 {code: "K7Q2-M9XD", expiresAt, qrPayload: "tether://pair?code=…&server=…"}` (10 min TTL, single use) |
 | GET | `/devices` | → `{devices: [DeviceSummary]}` |
-| GET | `/devices/:id` | → `DeviceDetail` (incl. `status`, `currentState: GroupState[]` computed server-side, `appliedVersion`, `latestVersion`, `lastSeenAt`, `authorizationStatus`) |
+| GET | `/devices/:id` | → `DeviceDetail` (incl. `status`, `currentState: GroupState[]` computed server-side, `appliedVersion`, `latestVersion`, `lastSeenAt`, `authorizationStatus`, `local: {receivedAt, snapshot} \| null` — the phone's last read-only snapshot, see below) |
 | PATCH | `/devices/:id` | `{name?}` |
 | DELETE | `/devices/:id` | unpair |
 | POST | `/devices/:id/push` | force a policy push (debug) |
@@ -34,7 +34,7 @@ Auth schemes:
 ## Policy objects (admin / API key) — account-scoped, every mutation bumps device policy versions
 | Method | Path | Body |
 |---|---|---|
-| GET/POST | `/groups` | `{name, colorHex?, webDomains: string[]}` |
+| GET/POST | `/groups` | `{name, colorHex?, webDomains: string[], copiedFrom?: "lgrp_…"}` (`copiedFrom`: server copy of a phone-made group; the phone carries its app selection over once) |
 | PATCH/DELETE | `/groups/:id` | |
 | GET/POST | `/rules` | `Rule` without `id`/`source` (see policy-bundle.schema.json) |
 | PATCH/DELETE | `/rules/:id` | partial `Rule` |
@@ -67,6 +67,7 @@ Convenience (E9 automation): `POST /actions/block {groupIds, durationMinutes?}` 
 | POST | `/devices/me/unlock-requests` | `{kind: "groups"|"disableProtection", groupIds?, minutes?, reason?}` → `201 UnlockRequest` (`groupIds`+`minutes` required for `groups`) |
 | GET | `/devices/me/unlock-requests/:id` | → `UnlockRequest` |
 | DELETE | `/devices/me` | device-initiated unpair (only allowed when protection already disabled) |
+| PUT | `/devices/me/local` | `DeviceLocalSnapshot` (`device-local.schema.json`) → `204` (stored, or same `hash` as stored: no write), `413` (body > 256 KB), `422` (schema) |
 
 `UnlockRequest`: `{id, deviceId, kind, groupIds, minutes, reason, status: "pending"|"approved"|"denied"|"expired", createdAt, decidedAt?, overrideId?}`
 
@@ -82,3 +83,12 @@ the serialized bundle < 3000 bytes.
 
 ## Health
 `GET /healthz` → `{ok: true, version}`.
+
+## Guarded rules & phone snapshot (app ≥ 0.2.0)
+- `Rule.strictness: "guarded"` (block rules only) behaves like `flexible` in the engine; the app locks edits to the rule
+  and shrinking of its groups while it is active. The server sends `guarded` only to devices whose `appVersion` is
+  ≥ `0.2.0` (numeric semver compare); other devices get `flexible`. Apps < 0.2.0 fail to decode unknown strictness.
+- `PUT /devices/me/local`: the app uploads a snapshot of phone-made state (local groups with **counts only**, local
+  rules, sessions, pauses, protection settings) after local changes and on sync when its `hash` changed. Display only:
+  never evaluated or edited by the server. Replaced, never merged; deleted with the device. Apps treat 404/405 as
+  "server not updated yet" and retry on a later sync.

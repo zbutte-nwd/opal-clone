@@ -79,8 +79,9 @@ npm run cli -- apikey grokbot   # prints the key + the exact `claude mcp add` li
   header. It must run on a machine in the tailnet (the server is not on the public internet).
 
 Tools: `status` (call first), `block` (session now / one-off time block), `allow`, `end`,
-`create_group`, `update_group`, `delete_group`, `add_schedule`, `remove_schedule`, `set_mode`,
-`update_settings`, `pairing_code`, `unlock_requests`, `approve_unlock`, `deny_unlock`. Times are `HH:mm`, minutes, or ISO 8601, in the phone's time zone.
+`create_group`, `update_group`, `delete_group`, `add_schedule` (strictness `flexible`/`guarded`/`strict`), `remove_schedule`,
+`copy_from_phone`, `set_mode`, `update_settings`, `pairing_code`, `unlock_requests`, `approve_unlock`, `deny_unlock`.
+`status` also shows each phone's "phone-made" groups/schedules/pauses (app 0.2.0+). Times are `HH:mm`, minutes, or ISO 8601, in the phone's time zone.
 
 ## 4. Pair the phone
 
@@ -99,7 +100,7 @@ the phone (Apple privacy rule); the server only knows group names and websites.
 | Revoke a key | admin dashboard, or `DELETE /v1/api-keys/:id` with an admin login |
 | Add APNs later | `npm run setup -- --apns-key <file.p8> --apns-key-id <id>` then restart |
 | Restart | elevated: `powershell -ExecutionPolicy Bypass -File workstation\install-windows.ps1 -Restart` |
-| Update | `git pull; npm ci --ignore-scripts; npm test; npm run build;` then restart |
+| Update | elevated `install-windows.ps1 -Stop` first (`npm ci` with the server running fails on the locked better-sqlite3 binary and leaves `node_modules` half-deleted), then `git pull; npm ci --ignore-scripts; npm test; npm run build;` then `-Restart` |
 | Logs | `Get-Content data\server.log -Tail 50 -Wait` |
 | Backup | copy `server\data\tether.db*` and `server\.env` (elevated `install-windows.ps1 -Stop` first, `-Restart` after) |
 

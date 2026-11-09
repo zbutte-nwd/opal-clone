@@ -145,6 +145,24 @@ CREATE INDEX idx_audit_admin ON audit_log(admin_id, seq DESC);
     name: 'device_time_zone',
     sql: `ALTER TABLE devices ADD COLUMN time_zone TEXT;`,
   },
+  {
+    version: 3,
+    name: 'device_local',
+    // The phone's read-only snapshot of phone-made state (contracts/device-local.schema.json). Display only.
+    sql: `
+CREATE TABLE device_local (
+  device_id TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+  hash TEXT NOT NULL,
+  snapshot TEXT NOT NULL,
+  received_at TEXT NOT NULL
+);`,
+  },
+  {
+    version: 4,
+    name: 'group_copied_from',
+    // Server copy of a phone-made group (lgrp_…): the phone carries that group's app selection over once.
+    sql: `ALTER TABLE groups ADD COLUMN copied_from TEXT;`,
+  },
 ];
 
 export function migrate(db: DB): void {

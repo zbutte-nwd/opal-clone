@@ -20,10 +20,18 @@ struct GroupEditorView: View {
     @State private var showPicker = false
     @State private var loaded = false
     @State private var domainError: String?
+    @State private var guardTrigger = 0
 
     private var valid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
+        content.guardedChangePrompt(trigger: guardTrigger) {
+            if let groupId { onSaved?(groupId) }
+            if presentation != .onboarding { dismiss() }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
         Group {
             if presentation == .onboarding {
                 StepScaffold(title: "Your first group",
@@ -131,6 +139,8 @@ struct GroupEditorView: View {
         if let gid = model.saveGroup(id: groupId, name: trimmed, colorHex: colorHex, domains: domains, selection: selection) {
             onSaved?(gid)
             if presentation != .onboarding { dismiss() }
+        } else {
+            guardTrigger += 1
         }
     }
 }

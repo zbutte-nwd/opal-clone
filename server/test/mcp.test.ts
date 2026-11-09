@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { harness, type Harness } from './helpers.js';
+import { harness, localFixture, type Harness } from './helpers.js';
 import { parseTime } from '../src/mcp.js';
 
 async function setup() {
@@ -104,6 +104,16 @@ describe('mcp tools', () => {
     expect((await tool('status')).text).toContain('Work: block Social | mon,tue,wed,thu,fri 09:00-17:30');
     expect((await tool('remove_schedule', { schedule: 'work' })).text).toBe('Removed Work.');
 
+    // strictness: guarded (pausable, locked on the phone while active) and strict (also via the strict: true alias)
+    await tool('add_schedule', { name: 'Day', groups: ['Social'], days: ['weekdays'], start: '9:00', end: '17:00', strictness: 'guarded' });
+    await tool('add_schedule', { name: 'Night', groups: ['Social'], days: ['daily'], start: '22:00', end: '06:00', strict: true });
+    const st = (await tool('status')).text;
+    expect(st).toMatch(/Day: block Social \| mon,tue,wed,thu,fri 09:00-17:00 \| guarded id=/);
+    expect(st).toMatch(/Night: block Social \| .* 22:00-06:00 \| strict id=/);
+    expect((await tool('add_schedule', { name: 'X', groups: ['Social'], days: ['mon'], start: '1:00', end: '2:00', strictness: 'nope' })).isError).toBe(true);
+    await tool('remove_schedule', { schedule: 'Day' });
+    await tool('remove_schedule', { schedule: 'Night' });
+
     expect((await tool('update_group', { group: 'Social', websites: ['x.com', 'reddit.com'] })).text).toContain('x.com, reddit.com');
     expect((await tool('update_settings', { allowLocalRules: false })).text).toContain('"allowLocalRules":false');
     const pol2 = (await h.req('GET', '/v1/devices/me/policy', dev.deviceToken)).json;
@@ -143,6 +153,145 @@ describe('mcp tools', () => {
     expect((await tool('approve_unlock', { id: p2.id })).text).toBe('Approved: the phone may now turn off protection.');
     expect((await tool('unlock_requests', { all: true })).text).toContain('[denied]');
     expect((await tool('unlock_requests')).text).toBe('No pending unlock requests.');
+  });
+});
+
+describe('mcp phone-made visibility', () => {
+  it('status shows the phone snapshot (groups with counts, schedules, active session/pause) and names phone groups', async () => {
+    const { tool, h, dev } = await setup();
+    expect((await tool('status')).text).toContain('    phone-made: not reported yet (app 0.2.0+ needed)');
+
+    expect((await h.req('PUT', '/v1/devices/me/local', dev.deviceToken, localFixture())).status).toBe(204);
+    const st = (await tool('status')).text;
+    expect(st).toContain('    phone-made (changed 9:00 AM, phone last seen 9:00 AM): protection ON, lock partnerPIN');
+    expect(st).toContain('      groups: Socials (3 apps, 1 category, sites: instagram.com) id=lgrp_socials1');
+    expect(st).toContain('      schedules: Work: block Socials | mon,tue,wed,thu,fri 09:00-17:00 | guarded | max 3 pauses/day id=lrule_work1');
+    // At 9:00 PST the 8:30-9:30 session is active and the 9:00-9:05 pause is active.
+    expect(st).toContain('      active: session "Deep work" Socials, grp_social until 9:30 AM; pause Socials until 9:05 AM (Work)');
+
+    await h.req('POST', '/v1/devices/me/ack', dev.deviceToken, {
+      version: 1, appliedAt: h.clock.t.toISOString(), blockedGroupIds: ['lgrp_socials1', 'lgrp_unknown'],
+      authorizationStatus: 'approved', timeZone: 'America/Los_Angeles',
+    });
+    expect((await tool('status')).text).toMatch(/phone reports \(policy v1.*\): blocked Socials \+ 1 phone-made group/);
+
+    // Nothing active later in the day; empty sections are omitted.
+    h.advance(3 * 3600_000);
+    const later = (await tool('status')).text;
+    expect(later).not.toContain('      active:');
+  });
+});
+
+describe('copy_from_phone', () => {
+  async function withSnapshot(snapshot = true) {
+    const t = await setup();
+    if (snapshot) expect((await t.h.req('PUT', '/v1/devices/me/local', t.dev.deviceToken, localFixture())).status).toBe(204);
+    const bundle = async () => (await t.h.req('GET', '/v1/devices/me/policy', t.dev.deviceToken)).json;
+    return { ...t, bundle };
+  }
+
+  it('copies a phone group once (copiedFrom in the bundle); a second copy reuses it', async () => {
+    const { tool, bundle } = await withSnapshot();
+    const r = await tool('copy_from_phone', { group: 'socials' });
+    expect(r.isError).toBe(false);
+    expect(r.text).toMatch(/^Copied phone group Socials to server group Socials id=grp_/);
+    expect(r.text).toContain('The original stays on the phone');
+    const g = (await bundle()).groups;
+    expect(g).toHaveLength(1);
+    expect(g[0]).toMatchObject({ name: 'Socials', copiedFrom: 'lgrp_socials1', webDomains: ['instagram.com'], colorHex: '#FF5A5F' });
+    const again = await tool('copy_from_phone', { group: 'lgrp_socials1', name: 'Other name' });
+    expect(again.text).toMatch(/already copied/);
+    expect((await bundle()).groups).toHaveLength(1);
+  });
+
+  it('copy_from_phone schedule reuses existing copies and keeps server groups', async () => {
+    const { tool, h, token, dev, bundle } = await withSnapshot();
+    const server = (await h.req('POST', '/v1/groups', token, { name: 'News' })).json;
+    await tool('copy_from_phone', { group: 'Socials' });
+    // The phone schedule now covers a phone group (already copied) and a server group.
+    const snap = localFixture();
+    snap.hash = 'b'.repeat(64);
+    snap.rules[0].groupIds = ['lgrp_socials1', server.id];
+    expect((await h.req('PUT', '/v1/devices/me/local', dev.deviceToken, snap)).status).toBe(204);
+    const before = (await bundle()).groups.length;
+    const r = await tool('copy_from_phone', { schedule: 'work' });
+    expect(r.isError).toBe(false);
+    const b = await bundle();
+    expect(b.groups).toHaveLength(before);
+    const copy = b.groups.find((g: any) => g.copiedFrom === 'lgrp_socials1');
+    expect(b.rules).toHaveLength(1);
+    expect(b.rules[0]).toMatchObject({
+      name: 'Work', action: 'block', strictness: 'guarded', // setup() pairs app 1.0 (>= 0.2.0)
+      trigger: { type: 'schedule', windows: [{ days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00' }] }, maxPausesPerDay: 3,
+    });
+    expect(b.rules[0].groupIds).toEqual([copy.id, server.id]);
+  });
+
+  it('copied guarded rule reaches an app 0.1.0 device as flexible; errors are helpful', async () => {
+    const { tool, h, token } = await withSnapshot();
+    const old = await h.pair(token, 'Old phone', '0.1.0');
+    expect((await tool('copy_from_phone', { schedule: 'Work' })).isError).toBe(true); // two devices now: must name one
+    const several = (await tool('copy_from_phone', { schedule: 'Work' })).text;
+    expect(several).toMatch(/^Several devices are paired; give device: /);
+    expect(several).toContain('Zakir iPhone');
+    expect(several).toContain('Old phone');
+    expect((await tool('copy_from_phone', { schedule: 'Work', device: 'Zakir iPhone' })).isError).toBe(false);
+    expect((await h.req('GET', '/v1/devices/me/policy', old.deviceToken)).json.rules[0].strictness).toBe('flexible');
+    expect((await tool('copy_from_phone', { group: 'Nope', device: 'zakir iphone' })).text).toBe('Unknown phone-made group "Nope". Known: Socials');
+    expect((await tool('copy_from_phone', { device: 'Zakir iPhone' })).isError).toBe(true);
+    expect((await tool('copy_from_phone', { group: 'Socials', device: 'Old phone' })).text).toContain("phone hasn't reported yet");
+  });
+});
+
+describe('copy_from_phone (review fixes)', () => {
+  async function snap(mut: (s: any) => void) {
+    const t = await setup();
+    const sn = localFixture();
+    mut(sn);
+    expect((await t.h.req('PUT', '/v1/devices/me/local', t.dev.deviceToken, sn)).status).toBe(204);
+    const groups = async () => (await t.h.req('GET', '/v1/groups', t.token)).json.groups;
+    return { ...t, groups };
+  }
+
+  it('a schedule the server would reject creates nothing (no stray group copies)', async () => {
+    const t = await snap((s) => { s.rules[0].trigger.windows[0].end = '09:00'; });
+    const r = await t.tool('copy_from_phone', { schedule: 'Work' });
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain('start and end must differ');
+    expect(await t.groups()).toHaveLength(0);
+    const u = await snap((s) => { s.rules[0].groupIds = ['lgrp_socials1', 'lgrp_missing']; });
+    expect((await u.tool('copy_from_phone', { schedule: 'Work' })).isError).toBe(true);
+    expect(await u.groups()).toHaveLength(0);
+  });
+
+  it('parallel copies of the same phone group make one server group', async () => {
+    const t = await snap(() => {});
+    await Promise.all([t.tool('copy_from_phone', { group: 'Socials' }), t.tool('copy_from_phone', { schedule: 'Work' })]);
+    expect((await t.groups()).filter((g: any) => g.copiedFrom === 'lgrp_socials1')).toHaveLength(1);
+  });
+
+  it('copying the same schedule again reuses the earlier copy', async () => {
+    const t = await snap(() => {});
+    await t.tool('copy_from_phone', { schedule: 'Work' });
+    const again = await t.tool('copy_from_phone', { schedule: 'Work' });
+    expect(again.isError).toBe(false);
+    expect(again.text).toMatch(/already copied as server schedule Work id=rule_/);
+    expect((await t.h.req('GET', '/v1/rules', t.token)).json.rules).toHaveLength(1);
+  });
+
+  it('a name clash with a server group gets a "(phone)" name; status marks copies', async () => {
+    const t = await snap(() => {});
+    await t.tool('create_group', { name: 'socials' });
+    const r = await t.tool('copy_from_phone', { group: 'Socials' });
+    expect(r.text).toMatch(/to server group Socials \(phone\) id=/);
+    expect((await t.tool('status')).text).toMatch(/  Socials \(phone\) \(copy of phone group Socials; sites: instagram.com\) id=grp_/);
+  });
+
+  it('says which websites could not be copied', async () => {
+    const t = await snap((s) => { s.groups[0].webDomains = ['Instagram.com', 'not a domain']; });
+    const r = await t.tool('copy_from_phone', { group: 'Socials' });
+    expect(r.text).toContain('Websites not copied (not a valid domain): not a domain.');
+    expect((await t.groups())[0].webDomains).toEqual(['instagram.com']);
   });
 });
 

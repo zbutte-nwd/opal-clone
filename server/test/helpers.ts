@@ -17,7 +17,7 @@ export interface Harness {
   advance(ms: number): void;
   req(method: string, url: string, token?: string | null, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; json: any; headers: Record<string, any> }>;
   register(email?: string): Promise<{ token: string; adminId: string }>;
-  pair(adminToken: string, name?: string): Promise<{ deviceId: string; deviceToken: string }>;
+  pair(adminToken: string, name?: string, appVersion?: string): Promise<{ deviceId: string; deviceToken: string }>;
 }
 
 export async function harness(over: Partial<Config> = {}): Promise<Harness> {
@@ -47,9 +47,9 @@ export async function harness(over: Partial<Config> = {}): Promise<Harness> {
       if (r.status !== 201) throw new Error('register failed ' + JSON.stringify(r.json));
       return { token: r.json.token, adminId: r.json.admin.id };
     },
-    async pair(adminToken, name = 'iPhone') {
+    async pair(adminToken, name = 'iPhone', appVersion = '1.0') {
       const c = await h.req('POST', '/v1/pairing-codes', adminToken, {});
-      const e = await h.req('POST', '/v1/devices/enroll', null, { pairingCode: c.json.code, name, model: 'iPhone15,2', osVersion: '17.5', appVersion: '1.0' });
+      const e = await h.req('POST', '/v1/devices/enroll', null, { pairingCode: c.json.code, name, model: 'iPhone15,2', osVersion: '17.5', appVersion });
       if (e.status !== 201) throw new Error('enroll failed ' + JSON.stringify(e.json));
       return { deviceId: e.json.deviceId, deviceToken: e.json.deviceToken };
     },
@@ -65,3 +65,15 @@ const validate = ajv.compile(schema);
 export function validateBundle(b: unknown): string | null {
   return validate(b) ? null : ajv.errorsText(validate.errors);
 }
+
+// device-local.schema.json $refs the engine-input and policy-bundle schemas by $id.
+const ajvLocal = new Ajv({ strict: false, allErrors: true });
+((addFormats as any).default ?? addFormats)(ajvLocal);
+const contract = (f: string) => JSON.parse(readFileSync(new URL(`../../contracts/${f}`, import.meta.url), 'utf8'));
+ajvLocal.addSchema(contract('engine-input.schema.json'));
+ajvLocal.addSchema(contract('policy-bundle.schema.json'));
+const validateLocalFn = ajvLocal.compile(contract('device-local.schema.json'));
+export function validateLocal(s: unknown): string | null {
+  return validateLocalFn(s) ? null : ajvLocal.errorsText(validateLocalFn.errors);
+}
+export const localFixture = (): any => contract('fixtures/device-local.example.json');

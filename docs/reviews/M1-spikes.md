@@ -39,8 +39,23 @@ launch, and in the push NSE (which syncs from a background launch), it can read 
 **Fix:** acks use `AuthorizationManager.reportableStatusValue()`: on `.notDetermined` with a
 definite status previously recorded by the app, extensions report the recorded status; the app
 re-reads for up to 3 s, then reports what it sees (a lasting revocation still reaches the server).
-Open: what a real revocation reads as (`.denied` vs `.notDetermined`) — spike S1.
+Answered 2026-11-09 04:16 PT: a **real revocation reads `.notDetermined`** (user turned Tether's Screen Time
+access off; the 0.2.0 app, background-launched after an update, acked `notDetermined` and the server correctly
+showed `revoked`). So `.notDetermined` must NOT be masked in the app: the extension-only fallback stays, and the
+app's 3 s re-read is the only smoothing. (A broader "background launches report the recorded status" change
+was drafted and dropped for this reason: it would hide a real revocation until the app is opened.)
 
 ## S1–S6
 
-Not run yet.
+### S1 — Screen Time passcode gate (partial, 2026-11-09)
+
+| Attempt | Result |
+|---|---|
+| (b) Revoke Tether in Settings → Screen Time (apps with access) | **iOS asks for the Screen Time passcode.** Confirmed by the user, who knows it and turned access off at ~04:16 PT. The app then acked `notDetermined` and the server showed the device `revoked` (see F2). |
+| (a) Delete the app | not yet recorded |
+| (c) Sign out of iCloud | not yet recorded |
+
+Implication: the gate is only as strong as who holds the Screen Time passcode. If the user knows it, revocation
+is always possible; the server surfaces it as `revoked`. For real friction, someone else must hold the passcode.
+
+S2–S6: not run yet.

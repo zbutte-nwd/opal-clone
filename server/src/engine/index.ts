@@ -1,7 +1,7 @@
 // TypeScript port of ARCHITECTURE.md §3 (resolution semantics). Verified by contracts/engine-vectors.json.
 // Wall-clock math uses Intl.DateTimeFormat with an explicit IANA time zone; no Temporal needed.
 
-export interface BlockGroup { id: string; name: string; colorHex?: string | null; webDomains: string[]; source?: 'server' | 'local' }
+export interface BlockGroup { id: string; name: string; colorHex?: string | null; webDomains: string[]; source?: 'server' | 'local'; copiedFrom?: string }
 export interface Window { days: number[]; start: string; end: string }
 export type Trigger =
   | { type: 'schedule'; windows: Window[] }
@@ -9,7 +9,7 @@ export type Trigger =
   | { type: 'manual'; active: boolean };
 export interface Rule {
   id: string; name: string; groupIds: string[]; enabled: boolean; action: 'block' | 'allow';
-  trigger: Trigger; strictness: 'flexible' | 'strict'; priority?: number; maxPausesPerDay?: number | null;
+  trigger: Trigger; strictness: 'flexible' | 'guarded' | 'strict'; priority?: number; maxPausesPerDay?: number | null;
   source?: 'server' | 'local';
 }
 export interface Override {
