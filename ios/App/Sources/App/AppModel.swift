@@ -296,12 +296,14 @@ final class AppModel {
         return gid
     }
 
+    private static let strictMessage = "A strict block is active right now, so this can't be changed until it ends."
+
     func deleteGroup(_ gid: GroupID) {
+        if groupStates[gid]?.strict == true { lastError = Self.strictMessage; return }
         mutate { s in
             s.localGroups.removeAll { $0.id == gid }
             for i in s.localRules.indices { s.localRules[i].groupIds.removeAll { $0 == gid } }
             s.localRules.removeAll { $0.groupIds.isEmpty }
-            for i in s.sessions.indices { s.sessions[i].groupIds.removeAll { $0 == gid } }
         }
         platform.removeSelection(for: gid)
         selectionRevision += 1
@@ -309,7 +311,13 @@ final class AppModel {
 
     // MARK: Rules
 
+    /// True while a strict block caused by this rule is in force (editing would loosen it).
+    private func isStrictlyLocked(_ ruleId: RuleID) -> Bool {
+        groupStates.values.contains { $0.strict && $0.reason.kind == .rule && $0.reason.id == ruleId }
+    }
+
     func saveRule(_ rule: Rule) {
+        if isStrictlyLocked(rule.id) { lastError = Self.strictMessage; return }
         guard allowLocalRules else { lastError = "Your admin has turned off local schedules on this device."; return }
         mutate { s in
             if let i = s.localRules.firstIndex(where: { $0.id == rule.id }) { s.localRules[i] = rule }
@@ -317,9 +325,13 @@ final class AppModel {
         }
     }
 
-    func deleteRule(_ id: RuleID) { mutate { $0.localRules.removeAll { $0.id == id } } }
+    func deleteRule(_ id: RuleID) {
+        if isStrictlyLocked(id) { lastError = Self.strictMessage; return }
+        mutate { $0.localRules.removeAll { $0.id == id } }
+    }
 
     func setRuleEnabled(_ id: RuleID, _ on: Bool) {
+        if !on && isStrictlyLocked(id) { lastError = Self.strictMessage; return }
         mutate { s in if let i = s.localRules.firstIndex(where: { $0.id == id }) { s.localRules[i].enabled = on } }
     }
 

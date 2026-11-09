@@ -28,6 +28,7 @@ export interface NewOverride {
 /** Validates, inserts and bumps policy for the targeted devices. Returns the admin-facing override. */
 export function createOverride(ctx: Ctx, adminId: string, actor: string, input: NewOverride) {
   if (input.endsAt && input.durationMinutes !== undefined) throw invalid('Provide either endsAt or durationMinutes, not both');
+  if (!input.groupIds.length) throw invalid('groupIds: at least one group is required');
   assertGroupsExist(ctx, adminId, input.groupIds);
   if (input.deviceIds?.length) assertDevicesExist(ctx, adminId, input.deviceIds);
   const now = ctx.now();

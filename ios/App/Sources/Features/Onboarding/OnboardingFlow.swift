@@ -6,7 +6,7 @@ enum OnboardingStep: Int, CaseIterable {
 }
 
 /// State shared by the onboarding steps.
-@MainActor @Observable
+@Observable
 final class OnboardingDraft {
     var authMode: AuthMode = .individual
     var groupId: GroupID?

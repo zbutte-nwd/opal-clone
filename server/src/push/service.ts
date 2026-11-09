@@ -64,10 +64,12 @@ export class PushService {
   }
 
   /** Non-debounced custom tether push, e.g. unlockDecided. */
-  async sendTether(deviceId: string, tether: TetherPayload, body: string): Promise<void> {
-    const row = this.row(deviceId);
-    if (!row?.push_token) return;
-    await this.sendPair(deviceId, row, tether, body);
+  sendTether(deviceId: string, tether: TetherPayload, body: string): Promise<void> {
+    return this.track((async () => {
+      const row = this.row(deviceId);
+      if (!row?.push_token) return;
+      await this.sendPair(deviceId, row, tether, body);
+    })());
   }
 
   private row(deviceId: string): PushRow | undefined {
