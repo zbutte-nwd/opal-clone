@@ -2,6 +2,7 @@ import UIKit
 import BackgroundTasks
 import UserNotifications
 import TetherCore
+import TetherKit
 
 /// Process-wide singletons shared by the SwiftUI `App` and the `AppDelegate`.
 @MainActor
@@ -32,8 +33,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     static let refreshTaskId = "tether.refresh"
 
     func application(_ application: UIApplication,
-                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        NotificationRouter.registerCategories()   // pause category used by the shield-action notification
         // BGTask handlers must be registered before launch finishes.
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskId, using: nil) { task in
             guard let task = task as? BGAppRefreshTask else { task.setTaskCompleted(success: false); return }
