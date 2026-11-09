@@ -96,6 +96,8 @@ final class LivePlatformServices: PlatformServices {
         return summarize(await sync.syncNow(reason: .manual))
     }
 
+    func localStateChanged() { PlatformSync.shared.localStateChanged() }
+
     func handlePush(userInfo: [AnyHashable: Any]) async {
         _ = await sync.handlePush(userInfo)
     }

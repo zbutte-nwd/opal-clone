@@ -69,6 +69,18 @@ public struct APIClient: Sendable {
         _ = try await send("DELETE", "/devices/me")
     }
 
+    /// `PUT /devices/me/local`: 204 = stored (or unchanged hash). 404/405 = server predates the endpoint.
+    public func putLocalSnapshot(_ snapshot: LocalSnapshot) async throws -> SnapshotPutResult {
+        do {
+            _ = try await send("PUT", "/devices/me/local", body: snapshot)
+            return .stored
+        } catch APIError.notFound {
+            return .serverTooOld
+        } catch APIError.server(let status, _, _) where status == 405 {
+            return .serverTooOld
+        }
+    }
+
     // MARK: Plumbing
 
     func makeURL(_ path: String) throws -> URL {

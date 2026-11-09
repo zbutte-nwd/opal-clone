@@ -201,6 +201,7 @@ final class AppModel {
             _ = try platform.stateStore.update { s in try body(&s) }
             platform.reconcile(now: Date())
             refresh()
+            platform.localStateChanged()
             if sync { Task { await syncNow() } }
             return true
         } catch {
@@ -342,6 +343,7 @@ final class AppModel {
         selectionRevision += 1
         platform.reconcile(now: Date())
         refresh()
+        platform.localStateChanged()
     }
 
     @discardableResult

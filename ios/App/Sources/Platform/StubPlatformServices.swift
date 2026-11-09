@@ -72,6 +72,8 @@ final class StubPlatformServices: PlatformServices {
 
     func disableProtectionAfterRemoteApproval(requestId: String) throws { try finishDisable() }
 
+    func localStateChanged() {}
+
     var effectiveProtectionLock: ProtectionLock { (try? stateStore.load().protection.lock) ?? .partnerPIN }
 
     func authorizeGuardedChange(pin: String?) throws {

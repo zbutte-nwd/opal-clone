@@ -25,6 +25,11 @@ public actor SyncEngine {
     private let onBundleChanged: @Sendable () async -> Void
     private let blockedGroupIdsProvider: @Sendable () async -> [String]
     private let authorizationStatusProvider: @Sendable () async -> AuthorizationStatusValue
+    /// Current phone-made state, or nil when unavailable (extensions don't upload it).
+    private let snapshotProvider: @Sendable () async -> LocalSnapshot?
+    /// Hash the server last accepted; in memory, so a relaunch re-sends once (server answers 204, no write).
+    private(set) var lastUploadedSnapshotHash: String?
+    private var snapshotDebounce: Task<Void, Never>?
     private let jitter: @Sendable () -> Double
 
     private var inFlight: Task<SyncOutcome, Never>?
@@ -43,11 +48,13 @@ public actor SyncEngine {
                 now: @escaping @Sendable () -> Date = Date.init,
                 blockedGroupIdsProvider: @escaping @Sendable () async -> [String] = { [] },
                 authorizationStatusProvider: @escaping @Sendable () async -> AuthorizationStatusValue = { .approved },
+                snapshotProvider: @escaping @Sendable () async -> LocalSnapshot? = { nil },
                 jitter: @escaping @Sendable () -> Double = { Double.random(in: 0.75...1.25) },
                 onBundleChanged: @escaping @Sendable () async -> Void) {
         self.api = api; self.store = store; self.now = now
         self.blockedGroupIdsProvider = blockedGroupIdsProvider
         self.authorizationStatusProvider = authorizationStatusProvider
+        self.snapshotProvider = snapshotProvider
         self.jitter = jitter
         self.onBundleChanged = onBundleChanged
     }
@@ -108,9 +115,36 @@ public actor SyncEngine {
         return resp.deviceToken
     }
 
+    // MARK: Phone-made snapshot
+
+    /// After a local change: upload the snapshot ~`delay` later, coalescing bursts of edits.
+    public func scheduleSnapshotUpload(delay: TimeInterval = 2) {
+        snapshotDebounce?.cancel()
+        snapshotDebounce = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.uploadSnapshotIfChanged()
+        }
+    }
+
+    /// Uploads only while paired and only when the content hash changed. Failures are retried on a later
+    /// sync and never fail the sync itself (the snapshot is display-only).
+    public func uploadSnapshotIfChanged() async {
+        guard (try? store.load().server) != nil, let snap = await snapshotProvider(),
+              snap.hash != lastUploadedSnapshotHash else { return }
+        if case .stored? = try? await api.putLocalSnapshot(snap) { lastUploadedSnapshotHash = snap.hash }
+    }
+
     // MARK: Internals
 
     private func runSync() async -> SyncOutcome {
+        let outcome = await runPolicySync()
+        if case .unauthorized = outcome { return outcome }
+        await uploadSnapshotIfChanged()
+        return outcome
+    }
+
+    private func runPolicySync() async -> SyncOutcome {
         var firstError: APIError?
 
         // (a) flush events

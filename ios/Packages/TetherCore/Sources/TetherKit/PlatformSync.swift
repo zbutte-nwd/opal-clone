@@ -49,10 +49,17 @@ public final class PlatformSync: @unchecked Sendable {
             store: StateStore(directory: AppGroup.containerURL),
             blockedGroupIdsProvider: { Reconciler.shared.snapshot().blockedGroupIds },
             authorizationStatusProvider: { await AuthorizationManager.reportableStatusValue() },
+            snapshotProvider: { SnapshotBuilder.current() },
             onBundleChanged: { Reconciler.shared.reconcile() })
     }
 
     // MARK: Operations
+
+    /// After a local change in the app: upload the phone-made snapshot (debounced) if paired.
+    public func localStateChanged() {
+        guard let e = engine() else { return }
+        Task { await e.scheduleSnapshotUpload() }
+    }
 
     public func syncNow(reason: SyncReason) async -> SyncOutcome {
         guard let e = engine() else { return .failed(retryAfter: nil) }
